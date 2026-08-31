@@ -65,11 +65,9 @@ func (r *usagePayloadRepository) GetPayloadByUsageLogID(ctx context.Context, usa
 	`
 
 	var payload service.UsageLogPayload
-	err := r.sql.QueryRowContext(ctx, query, usageLogID).Scan(
+	err := r.db.QueryRowContext(ctx, query, usageLogID).Scan(
+		&payload.ID,
 		&payload.UsageLogID,
-		&payload.RequestID,
-		&payload.APIKeyID,
-		&payload.UserID,
 		&payload.RequestBody,
 		&payload.ResponseBody,
 		&payload.RequestTruncated,
