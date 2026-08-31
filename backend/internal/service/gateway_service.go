@@ -762,6 +762,7 @@ type GatewayService struct {
 	groupRepo             GroupRepository
 	usageLogRepo          UsageLogRepository
 	usageBillingRepo      UsageBillingRepository
+	usagePayloadRepo      UsagePayloadRepository
 	userRepo              UserRepository
 	userSubRepo           UserSubscriptionRepository
 	userGroupRateRepo     UserGroupRateRepository
@@ -803,6 +804,7 @@ func NewGatewayService(
 	groupRepo GroupRepository,
 	usageLogRepo UsageLogRepository,
 	usageBillingRepo UsageBillingRepository,
+	usagePayloadRepo UsagePayloadRepository,
 	userRepo UserRepository,
 	userSubRepo UserSubscriptionRepository,
 	userGroupRateRepo UserGroupRateRepository,
@@ -836,6 +838,7 @@ func NewGatewayService(
 		groupRepo:             groupRepo,
 		usageLogRepo:          usageLogRepo,
 		usageBillingRepo:      usageBillingRepo,
+		usagePayloadRepo:      usagePayloadRepo,
 		userRepo:              userRepo,
 		userSubRepo:           userSubRepo,
 		userGroupRateRepo:     userGroupRateRepo,

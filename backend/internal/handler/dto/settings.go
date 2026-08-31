@@ -429,6 +429,8 @@ type PublicSettings struct {
 	RiskControlEnabled bool `json:"risk_control_enabled"`
 
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
+
+	AllowUserViewUsagePayloads bool `json:"allow_user_view_usage_payloads"`
 }
 
 type LoginAgreementDocument struct {

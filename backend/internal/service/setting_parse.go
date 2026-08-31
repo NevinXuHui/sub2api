@@ -971,6 +971,19 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 
 	result.AllowUserViewErrorRequests = settings[SettingKeyAllowUserViewErrorRequests] == "true" // default false
 
+	// 使用记录正文采集
+	result.UsagePayloadCaptureEnabled = settings[SettingKeyUsagePayloadCaptureEnabled] == "true"
+	if maxBytesRaw := strings.TrimSpace(settings[SettingKeyUsagePayloadMaxBytes]); maxBytesRaw != "" {
+		if parsed, err := strconv.Atoi(maxBytesRaw); err == nil {
+			result.UsagePayloadMaxBytes = ClampPayloadMaxBytes(parsed)
+		} else {
+			result.UsagePayloadMaxBytes = 65536 // 默认 64KB
+		}
+	} else {
+		result.UsagePayloadMaxBytes = 65536
+	}
+	result.AllowUserViewUsagePayloads = settings[SettingKeyAllowUserViewUsagePayloads] == "true"
+
 	// Publish Grok default model_mapping options for accounts with empty mapping.
 	xai.SetRuntimeModelMappingOptions(xai.ModelMappingOptions{
 		DefaultText:          result.GrokDefaultTextModel,

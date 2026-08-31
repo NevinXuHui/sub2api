@@ -56,16 +56,24 @@ type UsageStats struct {
 
 // UsageService 使用统计服务
 type UsageService struct {
-	usageRepo            UsageLogRepository
+	usageLogRepo         UsageLogRepository
+	usagePayloadRepo     UsagePayloadRepository
 	userRepo             UserRepository
 	entClient            *dbent.Client
 	authCacheInvalidator APIKeyAuthCacheInvalidator
 }
 
 // NewUsageService 创建使用统计服务实例
-func NewUsageService(usageRepo UsageLogRepository, userRepo UserRepository, entClient *dbent.Client, authCacheInvalidator APIKeyAuthCacheInvalidator) *UsageService {
+func NewUsageService(
+	usageLogRepo UsageLogRepository,
+	usagePayloadRepo UsagePayloadRepository,
+	userRepo UserRepository,
+	entClient *dbent.Client,
+	authCacheInvalidator APIKeyAuthCacheInvalidator,
+) *UsageService {
 	return &UsageService{
-		usageRepo:            usageRepo,
+		usageLogRepo:         usageLogRepo,
+		usagePayloadRepo:     usagePayloadRepo,
 		userRepo:             userRepo,
 		entClient:            entClient,
 		authCacheInvalidator: authCacheInvalidator,
@@ -116,7 +124,7 @@ func (s *UsageService) Create(ctx context.Context, req CreateUsageLogRequest) (*
 		DurationMs:            req.DurationMs,
 	}
 
-	inserted, err := s.usageRepo.Create(txCtx, usageLog)
+	inserted, err := s.usageLogRepo.Create(txCtx, usageLog)
 	if err != nil {
 		return nil, fmt.Errorf("create usage log: %w", err)
 	}
@@ -150,7 +158,7 @@ func (s *UsageService) invalidateUsageCaches(ctx context.Context, userID int64, 
 
 // GetByID 根据ID获取使用日志
 func (s *UsageService) GetByID(ctx context.Context, id int64) (*UsageLog, error) {
-	log, err := s.usageRepo.GetByID(ctx, id)
+	log, err := s.usageLogRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("get usage log: %w", err)
 	}
@@ -159,7 +167,7 @@ func (s *UsageService) GetByID(ctx context.Context, id int64) (*UsageLog, error)
 
 // ListByUser 获取用户的使用日志列表
 func (s *UsageService) ListByUser(ctx context.Context, userID int64, params pagination.PaginationParams) ([]UsageLog, *pagination.PaginationResult, error) {
-	logs, pagination, err := s.usageRepo.ListByUser(ctx, userID, params)
+	logs, pagination, err := s.usageLogRepo.ListByUser(ctx, userID, params)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list usage logs: %w", err)
 	}
@@ -168,7 +176,7 @@ func (s *UsageService) ListByUser(ctx context.Context, userID int64, params pagi
 
 // ListByAPIKey 获取API Key的使用日志列表
 func (s *UsageService) ListByAPIKey(ctx context.Context, apiKeyID int64, params pagination.PaginationParams) ([]UsageLog, *pagination.PaginationResult, error) {
-	logs, pagination, err := s.usageRepo.ListByAPIKey(ctx, apiKeyID, params)
+	logs, pagination, err := s.usageLogRepo.ListByAPIKey(ctx, apiKeyID, params)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list usage logs: %w", err)
 	}
@@ -177,7 +185,7 @@ func (s *UsageService) ListByAPIKey(ctx context.Context, apiKeyID int64, params 
 
 // ListByAccount 获取账号的使用日志列表
 func (s *UsageService) ListByAccount(ctx context.Context, accountID int64, params pagination.PaginationParams) ([]UsageLog, *pagination.PaginationResult, error) {
-	logs, pagination, err := s.usageRepo.ListByAccount(ctx, accountID, params)
+	logs, pagination, err := s.usageLogRepo.ListByAccount(ctx, accountID, params)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list usage logs: %w", err)
 	}
@@ -186,7 +194,7 @@ func (s *UsageService) ListByAccount(ctx context.Context, accountID int64, param
 
 // GetStatsByUser 获取用户的使用统计
 func (s *UsageService) GetStatsByUser(ctx context.Context, userID int64, startTime, endTime time.Time) (*UsageStats, error) {
-	stats, err := s.usageRepo.GetUserStatsAggregated(ctx, userID, startTime, endTime)
+	stats, err := s.usageLogRepo.GetUserStatsAggregated(ctx, userID, startTime, endTime)
 	if err != nil {
 		return nil, fmt.Errorf("get user stats: %w", err)
 	}
@@ -207,7 +215,7 @@ func (s *UsageService) GetStatsByUser(ctx context.Context, userID int64, startTi
 
 // GetStatsByAPIKey 获取API Key的使用统计
 func (s *UsageService) GetStatsByAPIKey(ctx context.Context, apiKeyID int64, startTime, endTime time.Time) (*UsageStats, error) {
-	stats, err := s.usageRepo.GetAPIKeyStatsAggregated(ctx, apiKeyID, startTime, endTime)
+	stats, err := s.usageLogRepo.GetAPIKeyStatsAggregated(ctx, apiKeyID, startTime, endTime)
 	if err != nil {
 		return nil, fmt.Errorf("get api key stats: %w", err)
 	}
@@ -228,7 +236,7 @@ func (s *UsageService) GetStatsByAPIKey(ctx context.Context, apiKeyID int64, sta
 
 // GetStatsByAccount 获取账号的使用统计
 func (s *UsageService) GetStatsByAccount(ctx context.Context, accountID int64, startTime, endTime time.Time) (*UsageStats, error) {
-	stats, err := s.usageRepo.GetAccountStatsAggregated(ctx, accountID, startTime, endTime)
+	stats, err := s.usageLogRepo.GetAccountStatsAggregated(ctx, accountID, startTime, endTime)
 	if err != nil {
 		return nil, fmt.Errorf("get account stats: %w", err)
 	}
@@ -249,7 +257,7 @@ func (s *UsageService) GetStatsByAccount(ctx context.Context, accountID int64, s
 
 // GetStatsByModel 获取模型的使用统计
 func (s *UsageService) GetStatsByModel(ctx context.Context, modelName string, startTime, endTime time.Time) (*UsageStats, error) {
-	stats, err := s.usageRepo.GetModelStatsAggregated(ctx, modelName, startTime, endTime)
+	stats, err := s.usageLogRepo.GetModelStatsAggregated(ctx, modelName, startTime, endTime)
 	if err != nil {
 		return nil, fmt.Errorf("get model stats: %w", err)
 	}
@@ -273,7 +281,7 @@ func (s *UsageService) GetDailyStats(ctx context.Context, userID int64, days int
 	endTime := time.Now()
 	startTime := endTime.AddDate(0, 0, -days)
 
-	stats, err := s.usageRepo.GetDailyStatsAggregated(ctx, userID, startTime, endTime)
+	stats, err := s.usageLogRepo.GetDailyStatsAggregated(ctx, userID, startTime, endTime)
 	if err != nil {
 		return nil, fmt.Errorf("get daily stats: %w", err)
 	}
@@ -283,7 +291,7 @@ func (s *UsageService) GetDailyStats(ctx context.Context, userID int64, days int
 
 // Delete 删除使用日志（管理员功能，谨慎使用）
 func (s *UsageService) Delete(ctx context.Context, id int64) error {
-	if err := s.usageRepo.Delete(ctx, id); err != nil {
+	if err := s.usageLogRepo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("delete usage log: %w", err)
 	}
 	return nil
@@ -291,7 +299,7 @@ func (s *UsageService) Delete(ctx context.Context, id int64) error {
 
 // GetUserDashboardStats returns per-user dashboard summary stats.
 func (s *UsageService) GetUserDashboardStats(ctx context.Context, userID int64) (*usagestats.UserDashboardStats, error) {
-	stats, err := s.usageRepo.GetUserDashboardStats(ctx, userID)
+	stats, err := s.usageLogRepo.GetUserDashboardStats(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get user dashboard stats: %w", err)
 	}
@@ -300,7 +308,7 @@ func (s *UsageService) GetUserDashboardStats(ctx context.Context, userID int64) 
 
 // GetAPIKeyDashboardStats returns dashboard summary stats filtered by API Key.
 func (s *UsageService) GetAPIKeyDashboardStats(ctx context.Context, apiKeyID int64) (*usagestats.UserDashboardStats, error) {
-	stats, err := s.usageRepo.GetAPIKeyDashboardStats(ctx, apiKeyID)
+	stats, err := s.usageLogRepo.GetAPIKeyDashboardStats(ctx, apiKeyID)
 	if err != nil {
 		return nil, fmt.Errorf("get api key dashboard stats: %w", err)
 	}
@@ -309,7 +317,7 @@ func (s *UsageService) GetAPIKeyDashboardStats(ctx context.Context, apiKeyID int
 
 // GetUserUsageTrendByUserID returns per-user usage trend.
 func (s *UsageService) GetUserUsageTrendByUserID(ctx context.Context, userID int64, startTime, endTime time.Time, granularity string) ([]usagestats.TrendDataPoint, error) {
-	trend, err := s.usageRepo.GetUserUsageTrendByUserID(ctx, userID, startTime, endTime, granularity)
+	trend, err := s.usageLogRepo.GetUserUsageTrendByUserID(ctx, userID, startTime, endTime, granularity)
 	if err != nil {
 		return nil, fmt.Errorf("get user usage trend: %w", err)
 	}
@@ -321,14 +329,14 @@ func (s *UsageService) GetUsageTrendWithFilters(ctx context.Context, startTime, 
 	type usageTrendWithFiltersRepo interface {
 		GetUsageTrendWithUsageFilters(ctx context.Context, startTime, endTime time.Time, granularity string, filters usagestats.UsageLogFilters) ([]usagestats.TrendDataPoint, error)
 	}
-	if filterRepo, ok := s.usageRepo.(usageTrendWithFiltersRepo); ok {
+	if filterRepo, ok := s.usageLogRepo.(usageTrendWithFiltersRepo); ok {
 		trend, err := filterRepo.GetUsageTrendWithUsageFilters(ctx, startTime, endTime, granularity, filters)
 		if err != nil {
 			return nil, fmt.Errorf("get usage trend with filters: %w", err)
 		}
 		return trend, nil
 	}
-	trend, err := s.usageRepo.GetUsageTrendWithFilters(ctx, startTime, endTime, granularity, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.Model, filters.RequestType, filters.Stream, filters.BillingType)
+	trend, err := s.usageLogRepo.GetUsageTrendWithFilters(ctx, startTime, endTime, granularity, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.Model, filters.RequestType, filters.Stream, filters.BillingType)
 	if err != nil {
 		return nil, fmt.Errorf("get usage trend with filters: %w", err)
 	}
@@ -337,7 +345,7 @@ func (s *UsageService) GetUsageTrendWithFilters(ctx context.Context, startTime, 
 
 // GetUserModelStats returns per-user model usage stats.
 func (s *UsageService) GetUserModelStats(ctx context.Context, userID int64, startTime, endTime time.Time) ([]usagestats.ModelStat, error) {
-	stats, err := s.usageRepo.GetUserModelStats(ctx, userID, startTime, endTime)
+	stats, err := s.usageLogRepo.GetUserModelStats(ctx, userID, startTime, endTime)
 	if err != nil {
 		return nil, fmt.Errorf("get user model stats: %w", err)
 	}
@@ -350,7 +358,7 @@ func (s *UsageService) GetModelStatsWithFiltersBySource(ctx context.Context, sta
 	type modelStatsWithUsageFiltersRepo interface {
 		GetModelStatsWithUsageFiltersBySource(ctx context.Context, startTime, endTime time.Time, filters usagestats.UsageLogFilters, source string) ([]usagestats.ModelStat, error)
 	}
-	if filterRepo, ok := s.usageRepo.(modelStatsWithUsageFiltersRepo); ok {
+	if filterRepo, ok := s.usageLogRepo.(modelStatsWithUsageFiltersRepo); ok {
 		stats, err := filterRepo.GetModelStatsWithUsageFiltersBySource(ctx, startTime, endTime, filters, normalizedSource)
 		if err != nil {
 			return nil, fmt.Errorf("get model stats with filters by source: %w", err)
@@ -360,14 +368,14 @@ func (s *UsageService) GetModelStatsWithFiltersBySource(ctx context.Context, sta
 	type modelStatsBySourceRepo interface {
 		GetModelStatsWithFiltersBySource(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8, source string) ([]usagestats.ModelStat, error)
 	}
-	if sourceRepo, ok := s.usageRepo.(modelStatsBySourceRepo); ok {
+	if sourceRepo, ok := s.usageLogRepo.(modelStatsBySourceRepo); ok {
 		stats, err := sourceRepo.GetModelStatsWithFiltersBySource(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.RequestType, filters.Stream, filters.BillingType, normalizedSource)
 		if err != nil {
 			return nil, fmt.Errorf("get model stats with filters by source: %w", err)
 		}
 		return stats, nil
 	}
-	stats, err := s.usageRepo.GetModelStatsWithFilters(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.RequestType, filters.Stream, filters.BillingType)
+	stats, err := s.usageLogRepo.GetModelStatsWithFilters(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.RequestType, filters.Stream, filters.BillingType)
 	if err != nil {
 		return nil, fmt.Errorf("get model stats with filters: %w", err)
 	}
@@ -379,14 +387,14 @@ func (s *UsageService) GetGroupStatsWithFilters(ctx context.Context, startTime, 
 	type groupStatsWithUsageFiltersRepo interface {
 		GetGroupStatsWithUsageFilters(ctx context.Context, startTime, endTime time.Time, filters usagestats.UsageLogFilters) ([]usagestats.GroupStat, error)
 	}
-	if filterRepo, ok := s.usageRepo.(groupStatsWithUsageFiltersRepo); ok {
+	if filterRepo, ok := s.usageLogRepo.(groupStatsWithUsageFiltersRepo); ok {
 		stats, err := filterRepo.GetGroupStatsWithUsageFilters(ctx, startTime, endTime, filters)
 		if err != nil {
 			return nil, fmt.Errorf("get group stats with filters: %w", err)
 		}
 		return stats, nil
 	}
-	stats, err := s.usageRepo.GetGroupStatsWithFilters(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.RequestType, filters.Stream, filters.BillingType)
+	stats, err := s.usageLogRepo.GetGroupStatsWithFilters(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.RequestType, filters.Stream, filters.BillingType)
 	if err != nil {
 		return nil, fmt.Errorf("get group stats with filters: %w", err)
 	}
@@ -395,7 +403,7 @@ func (s *UsageService) GetGroupStatsWithFilters(ctx context.Context, startTime, 
 
 // GetAPIKeyModelStats returns per-model usage stats for a specific API Key.
 func (s *UsageService) GetAPIKeyModelStats(ctx context.Context, apiKeyID int64, startTime, endTime time.Time) ([]usagestats.ModelStat, error) {
-	stats, err := s.usageRepo.GetModelStatsWithFilters(ctx, startTime, endTime, 0, apiKeyID, 0, 0, nil, nil, nil)
+	stats, err := s.usageLogRepo.GetModelStatsWithFilters(ctx, startTime, endTime, 0, apiKeyID, 0, 0, nil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("get api key model stats: %w", err)
 	}
@@ -404,7 +412,7 @@ func (s *UsageService) GetAPIKeyModelStats(ctx context.Context, apiKeyID int64, 
 
 // GetAPIKeyDailyUsage returns daily usage stats for a user's API key.
 func (s *UsageService) GetAPIKeyDailyUsage(ctx context.Context, userID, apiKeyID int64, startTime, endTime time.Time) ([]usagestats.APIKeyDailyUsagePoint, error) {
-	trend, err := s.usageRepo.GetUsageTrendWithFilters(ctx, startTime, endTime, "day", userID, apiKeyID, 0, 0, "", nil, nil, nil)
+	trend, err := s.usageLogRepo.GetUsageTrendWithFilters(ctx, startTime, endTime, "day", userID, apiKeyID, 0, 0, "", nil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("get api key daily usage: %w", err)
 	}
@@ -428,7 +436,7 @@ func (s *UsageService) GetAPIKeyDailyUsage(ctx context.Context, userID, apiKeyID
 
 // GetBatchAPIKeyUsageStats returns today/total actual_cost for given api keys.
 func (s *UsageService) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchAPIKeyUsageStats, error) {
-	stats, err := s.usageRepo.GetBatchAPIKeyUsageStats(ctx, apiKeyIDs, startTime, endTime)
+	stats, err := s.usageLogRepo.GetBatchAPIKeyUsageStats(ctx, apiKeyIDs, startTime, endTime)
 	if err != nil {
 		return nil, fmt.Errorf("get batch api key usage stats: %w", err)
 	}
@@ -437,7 +445,7 @@ func (s *UsageService) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs [
 
 // ListWithFilters lists usage logs with admin filters.
 func (s *UsageService) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]UsageLog, *pagination.PaginationResult, error) {
-	logs, result, err := s.usageRepo.ListWithFilters(ctx, params, filters)
+	logs, result, err := s.usageLogRepo.ListWithFilters(ctx, params, filters)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list usage logs with filters: %w", err)
 	}
@@ -446,7 +454,7 @@ func (s *UsageService) ListWithFilters(ctx context.Context, params pagination.Pa
 
 // GetGlobalStats returns global usage stats for a time range.
 func (s *UsageService) GetGlobalStats(ctx context.Context, startTime, endTime time.Time) (*usagestats.UsageStats, error) {
-	stats, err := s.usageRepo.GetGlobalStats(ctx, startTime, endTime)
+	stats, err := s.usageLogRepo.GetGlobalStats(ctx, startTime, endTime)
 	if err != nil {
 		return nil, fmt.Errorf("get global usage stats: %w", err)
 	}
@@ -455,7 +463,7 @@ func (s *UsageService) GetGlobalStats(ctx context.Context, startTime, endTime ti
 
 // GetStatsWithFilters returns usage stats with optional filters.
 func (s *UsageService) GetStatsWithFilters(ctx context.Context, filters usagestats.UsageLogFilters) (*usagestats.UsageStats, error) {
-	stats, err := s.usageRepo.GetStatsWithFilters(ctx, filters)
+	stats, err := s.usageLogRepo.GetStatsWithFilters(ctx, filters)
 	if err != nil {
 		return nil, fmt.Errorf("get usage stats with filters: %w", err)
 	}

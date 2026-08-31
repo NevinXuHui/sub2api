@@ -426,6 +426,7 @@ type OpenAIGatewayService struct {
 	accountRepo           AccountRepository
 	usageLogRepo          UsageLogRepository
 	usageBillingRepo      UsageBillingRepository
+	usagePayloadRepo      UsagePayloadRepository
 	userRepo              UserRepository
 	userSubRepo           UserSubscriptionRepository
 	cache                 GatewayCache
@@ -496,6 +497,7 @@ func NewOpenAIGatewayService(
 	accountRepo AccountRepository,
 	usageLogRepo UsageLogRepository,
 	usageBillingRepo UsageBillingRepository,
+	usagePayloadRepo UsagePayloadRepository,
 	userRepo UserRepository,
 	userSubRepo UserSubscriptionRepository,
 	userGroupRateRepo UserGroupRateRepository,
@@ -525,6 +527,7 @@ func NewOpenAIGatewayService(
 		accountRepo:         accountRepo,
 		usageLogRepo:        usageLogRepo,
 		usageBillingRepo:    usageBillingRepo,
+		usagePayloadRepo:    usagePayloadRepo,
 		userRepo:            userRepo,
 		userSubRepo:         userSubRepo,
 		cache:               cache,

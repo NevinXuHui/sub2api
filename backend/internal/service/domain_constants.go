@@ -711,3 +711,12 @@ const AdminAPIKeyPrefix = "admin-"
 // SettingKeyAllowUserViewErrorRequests controls whether end users can view
 // their own failed requests on the usage page. Default false (opt-in).
 const SettingKeyAllowUserViewErrorRequests = "allow_user_view_error_requests"
+
+// SettingKeyUsagePayloadCaptureEnabled 是否采集用量请求/响应正文（管理员开关，默认 false）
+const SettingKeyUsagePayloadCaptureEnabled = "usage_payload_capture_enabled"
+
+// SettingKeyUsagePayloadMaxBytes 采集正文上限字节数（默认 65536，钳制 4096–1048576）
+const SettingKeyUsagePayloadMaxBytes = "usage_payload_max_bytes"
+
+// SettingKeyAllowUserViewUsagePayloads 终端用户是否可查看自己的用量请求/响应正文（独立开关，默认 false）
+const SettingKeyAllowUserViewUsagePayloads = "allow_user_view_usage_payloads"

@@ -239,6 +239,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyAffiliateEnabled,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
+
+		SettingKeyUsagePayloadCaptureEnabled,
+		SettingKeyUsagePayloadMaxBytes,
+		SettingKeyAllowUserViewUsagePayloads,
 	}
 
 	settings, err := s.settingRepo.GetMultiple(ctx, keys)
@@ -626,6 +630,8 @@ type PublicSettingsInjectionPayload struct {
 	AffiliateEnabled           bool `json:"affiliate_enabled"`
 	RiskControlEnabled         bool `json:"risk_control_enabled"`
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
+
+	AllowUserViewUsagePayloads bool `json:"allow_user_view_usage_payloads"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.

@@ -308,6 +308,11 @@ type SystemSettings struct {
 
 	// 允许终端用户在用量页查看自己的失败请求
 	AllowUserViewErrorRequests bool
+
+	// 使用记录正文采集
+	UsagePayloadCaptureEnabled bool // 采集开关（默认关）
+	UsagePayloadMaxBytes       int  // 上限（默认 65536，钳制 4096–1048576）
+	AllowUserViewUsagePayloads bool // 用户可见开关（默认关）
 }
 
 type DefaultSubscriptionSetting struct {
