@@ -70,6 +70,8 @@ type CyberPolicyUsageInput struct {
 	IPAddress          string
 	SessionID          string
 	RequestPayloadHash string
+	RequestPayload     []byte
+	ResponsePayload    []byte
 	APIKeyService      APIKeyQuotaUpdater
 	NativeCompactionV2 bool
 	ChannelUsageFields
@@ -106,6 +108,8 @@ func (s *OpenAIGatewayService) RecordCyberPolicyUsageLog(ctx context.Context, in
 		IPAddress:          in.IPAddress,
 		SessionID:          in.SessionID,
 		RequestPayloadHash: in.RequestPayloadHash,
+		RequestPayload:     in.RequestPayload,
+		ResponsePayload:    in.ResponsePayload,
 		APIKeyService:      in.APIKeyService,
 		ChannelUsageFields: in.ChannelUsageFields,
 		CyberBlocked:       true,
@@ -437,8 +441,8 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
-		if usageLog.ID != 0 && shouldWritePayload(input.RequestPayload, input.ResponsePayload) {
-			writeUsagePayloadBestEffort(ctx, s.usagePayloadRepo,
+		if shouldWritePayload(input.RequestPayload, input.ResponsePayload) {
+			writeCapturedUsagePayload(ctx, s.usageLogRepo, s.usagePayloadRepo, usageLog,
 				buildOpenAIUsagePayload(usageLog, input.RequestPayload, input.ResponsePayload), "service.openai_gateway")
 		}
 		logger.LegacyPrintf("service.openai_gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
@@ -472,15 +476,15 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if billingErr != nil {
 		usageLog.ActualCost = 0
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
-		if usageLog.ID != 0 && shouldWritePayload(input.RequestPayload, input.ResponsePayload) {
-			writeUsagePayloadBestEffort(ctx, s.usagePayloadRepo,
+		if shouldWritePayload(input.RequestPayload, input.ResponsePayload) {
+			writeCapturedUsagePayload(ctx, s.usageLogRepo, s.usagePayloadRepo, usageLog,
 				buildOpenAIUsagePayload(usageLog, input.RequestPayload, input.ResponsePayload), "service.openai_gateway")
 		}
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
-	if usageLog.ID != 0 && shouldWritePayload(input.RequestPayload, input.ResponsePayload) {
-		writeUsagePayloadBestEffort(ctx, s.usagePayloadRepo,
+	if shouldWritePayload(input.RequestPayload, input.ResponsePayload) {
+		writeCapturedUsagePayload(ctx, s.usageLogRepo, s.usagePayloadRepo, usageLog,
 			buildOpenAIUsagePayload(usageLog, input.RequestPayload, input.ResponsePayload), "service.openai_gateway")
 	}
 

@@ -543,6 +543,9 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 
 	updates[SettingKeyAllowUserViewErrorRequests] = strconv.FormatBool(settings.AllowUserViewErrorRequests)
+	updates[SettingKeyUsagePayloadCaptureEnabled] = strconv.FormatBool(settings.UsagePayloadCaptureEnabled)
+	updates[SettingKeyUsagePayloadMaxBytes] = strconv.Itoa(ClampPayloadMaxBytes(settings.UsagePayloadMaxBytes))
+	updates[SettingKeyAllowUserViewUsagePayloads] = strconv.FormatBool(settings.AllowUserViewUsagePayloads)
 
 	return updates, nil
 }
@@ -788,6 +791,7 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 	// codex_cli_only 加固策略缓存：设置更新后强制下次重载（涉及 4 个键 + JSON 解析，直接置过期）。
 	s.codexRestrictionPolicySF.Forget("codex_restriction_policy")
 	s.codexRestrictionPolicyCache.Store(&cachedCodexRestrictionPolicy{expiresAt: 0})
+	s.InvalidateUsagePayloadCaptureCache()
 	if s.onUpdate != nil {
 		s.onUpdate() // Invalidate cache after settings update
 	}

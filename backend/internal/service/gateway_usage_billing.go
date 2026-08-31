@@ -609,6 +609,30 @@ func writeUsagePayloadBestEffort(ctx context.Context, payloadRepo UsagePayloadRe
 	}
 }
 
+func ensureUsageLogID(ctx context.Context, repo UsageLogRepository, usageLog *UsageLog, logKey string) {
+	if repo == nil || usageLog == nil || usageLog.ID != 0 {
+		return
+	}
+	usageCtx, cancel := detachedBillingContext(ctx)
+	defer cancel()
+	if _, err := repo.Create(usageCtx, usageLog); err != nil {
+		logger.LegacyPrintf(logKey, "usage log ID backfill via Create failed (request_id=%s): %v", usageLog.RequestID, err)
+	}
+}
+
+func writeCapturedUsagePayload(ctx context.Context, logRepo UsageLogRepository, payloadRepo UsagePayloadRepository, usageLog *UsageLog, payload *UsageLogPayload, logKey string) {
+	if payloadRepo == nil || payload == nil || usageLog == nil {
+		return
+	}
+	ensureUsageLogID(ctx, logRepo, usageLog, logKey)
+	if usageLog.ID == 0 {
+		logger.LegacyPrintf(logKey, "skip usage payload write: usage_log_id=0 request_id=%s", usageLog.RequestID)
+		return
+	}
+	payload.UsageLogID = usageLog.ID
+	writeUsagePayloadBestEffort(ctx, payloadRepo, payload, logKey)
+}
+
 
 // recordUsageOpts 内部选项，参数化普通计费与长上下文计费的差异点。
 type recordUsageOpts struct {
@@ -661,6 +685,9 @@ type RecordUsageLongContextInput struct {
 	APIKeyService         APIKeyQuotaUpdater // API Key 配额服务(可选)
 	QuotaPlatform         string             // user×platform 配额计量平台:handler 在请求 ctx 内经 QuotaPlatform() 算定后传入(后扣运行在 worker 池 background ctx 上，取不到 ForcePlatform)
 
+	RequestPayload  []byte
+	ResponsePayload []byte
+
 	ChannelUsageFields // 渠道映射信息(由 handler 在 Forward 前解析)
 }
 
@@ -682,8 +709,8 @@ func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *
 		ForceCacheBilling:  input.ForceCacheBilling,
 		APIKeyService:      input.APIKeyService,
 		QuotaPlatform:      input.QuotaPlatform,
-		RequestPayload:     nil,
-		ResponsePayload:    nil,
+		RequestPayload:     input.RequestPayload,
+		ResponsePayload:    input.ResponsePayload,
 		ChannelUsageFields: input.ChannelUsageFields,
 	}, &recordUsageOpts{
 		LongContextThreshold:  input.LongContextThreshold,
@@ -915,8 +942,8 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
-		if usageLog.ID != 0 && (len(input.RequestPayload) > 0 || len(input.ResponsePayload) > 0) {
-			writeUsagePayloadBestEffort(ctx, s.usagePayloadRepo, buildUsagePayload(usageLog, input), "service.gateway")
+		if shouldWritePayload(input.RequestPayload, input.ResponsePayload) {
+			writeCapturedUsagePayload(ctx, s.usageLogRepo, s.usagePayloadRepo, usageLog, buildUsagePayload(usageLog, input), "service.gateway")
 		}
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
@@ -950,9 +977,15 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	if billingErr != nil {
 		usageLog.ActualCost = 0
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+		if shouldWritePayload(input.RequestPayload, input.ResponsePayload) {
+			writeCapturedUsagePayload(ctx, s.usageLogRepo, s.usagePayloadRepo, usageLog, buildUsagePayload(usageLog, input), "service.gateway")
+		}
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+	if shouldWritePayload(input.RequestPayload, input.ResponsePayload) {
+		writeCapturedUsagePayload(ctx, s.usageLogRepo, s.usagePayloadRepo, usageLog, buildUsagePayload(usageLog, input), "service.gateway")
+	}
 
 	return nil
 }

@@ -112,9 +112,17 @@ type usageLogCreateResult struct {
 }
 
 type usageLogBestEffortRequest struct {
+	log      *service.UsageLog
 	prepared usageLogInsertPrepared
 	apiKeyID int64
 	resultCh chan error
+}
+
+type bestEffortGroup struct {
+	prepared usageLogInsertPrepared
+	apiKeyID int64
+	key      string
+	reqs     []usageLogBestEffortRequest
 }
 
 type usageLogInsertPrepared struct {
@@ -186,6 +194,7 @@ func (r *usageLogRepository) CreateBestEffort(ctx context.Context, log *service.
 	}
 
 	req := usageLogBestEffortRequest{
+		log:      log,
 		prepared: prepareUsageLogInsert(log),
 		apiKeyID: log.APIKeyID,
 		resultCh: make(chan error, 1),
@@ -562,13 +571,6 @@ func (r *usageLogRepository) flushBestEffortBatch(db *sql.DB, batch []usageLogBe
 		return
 	}
 
-	type bestEffortGroup struct {
-		prepared usageLogInsertPrepared
-		apiKeyID int64
-		key      string
-		reqs     []usageLogBestEffortRequest
-	}
-
 	groupsByKey := make(map[string]*bestEffortGroup, len(batch))
 	groupOrder := make([]*bestEffortGroup, 0, len(batch))
 	preparedList := make([]usageLogInsertPrepared, 0, len(batch))
@@ -610,8 +612,11 @@ func (r *usageLogRepository) flushBestEffortBatch(db *sql.DB, batch []usageLogBe
 			singleErr := execUsageLogInsertNoResult(ctx, db, group.prepared)
 			if singleErr != nil {
 				logger.LegacyPrintf("repository.usage_log", "best-effort single fallback insert failed: %v", singleErr)
-			} else if group.prepared.requestID != "" && r != nil && r.bestEffortRecent != nil {
-				r.bestEffortRecent.SetDefault(group.key, struct{}{})
+			} else {
+				if group.prepared.requestID != "" && r != nil && r.bestEffortRecent != nil {
+					r.bestEffortRecent.SetDefault(group.key, struct{}{})
+				}
+				backfillBestEffortLogIDs(ctx, db, []*bestEffortGroup{group})
 			}
 			for _, req := range group.reqs {
 				sendUsageLogBestEffortResult(req.resultCh, singleErr)
@@ -619,12 +624,81 @@ func (r *usageLogRepository) flushBestEffortBatch(db *sql.DB, batch []usageLogBe
 		}
 		return
 	}
+	backfillBestEffortLogIDs(ctx, db, groupOrder)
 	for _, group := range groupOrder {
 		if group.prepared.requestID != "" && r != nil && r.bestEffortRecent != nil {
 			r.bestEffortRecent.SetDefault(group.key, struct{}{})
 		}
 		for _, req := range group.reqs {
 			sendUsageLogBestEffortResult(req.resultCh, nil)
+		}
+	}
+}
+
+func backfillBestEffortLogIDs(ctx context.Context, db *sql.DB, groups []*bestEffortGroup) {
+	if db == nil || len(groups) == 0 {
+		return
+	}
+	var query strings.Builder
+	args := make([]any, 0, len(groups)*2)
+	argPos := 1
+	query.WriteString("SELECT request_id, api_key_id, id, created_at FROM usage_logs WHERE (request_id, api_key_id) IN (")
+	first := true
+	for _, group := range groups {
+		if group == nil || group.prepared.requestID == "" {
+			continue
+		}
+		if !first {
+			query.WriteString(",")
+		}
+		first = false
+		query.WriteString("($")
+		query.WriteString(strconv.Itoa(argPos))
+		query.WriteString(",$")
+		query.WriteString(strconv.Itoa(argPos + 1))
+		query.WriteString(")")
+		args = append(args, group.prepared.requestID, group.apiKeyID)
+		argPos += 2
+	}
+	if len(args) == 0 {
+		return
+	}
+	query.WriteString(")")
+	rows, err := db.QueryContext(ctx, query.String(), args...)
+	if err != nil {
+		logger.LegacyPrintf("repository.usage_log", "best-effort ID backfill failed: %v", err)
+		return
+	}
+	defer rows.Close()
+	states := make(map[string]usageLogBatchState, len(groups))
+	for rows.Next() {
+		var requestID string
+		var apiKeyID, id int64
+		var createdAt time.Time
+		if err := rows.Scan(&requestID, &apiKeyID, &id, &createdAt); err != nil {
+			logger.LegacyPrintf("repository.usage_log", "best-effort ID backfill scan failed: %v", err)
+			return
+		}
+		states[usageLogBatchKey(requestID, apiKeyID)] = usageLogBatchState{ID: id, CreatedAt: createdAt}
+	}
+	if err := rows.Err(); err != nil {
+		logger.LegacyPrintf("repository.usage_log", "best-effort ID backfill rows failed: %v", err)
+		return
+	}
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		state, ok := states[usageLogBatchKey(group.prepared.requestID, group.apiKeyID)]
+		if !ok {
+			continue
+		}
+		for _, req := range group.reqs {
+			if req.log == nil {
+				continue
+			}
+			req.log.ID = state.ID
+			req.log.CreatedAt = state.CreatedAt
 		}
 	}
 }

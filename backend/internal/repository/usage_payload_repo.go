@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
 type usagePayloadRepository struct {
-	db sqlExecutor
+	sql sqlExecutor
 }
 
 // NewUsagePayloadRepository 创建 payload 仓储
@@ -34,7 +35,7 @@ func (r *usagePayloadRepository) InsertPayload(ctx context.Context, payload *ser
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 	`
 
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.sql.ExecContext(ctx, query,
 		payload.UsageLogID,
 		payload.RequestID,
 		payload.APIKeyID,
@@ -46,15 +47,16 @@ func (r *usagePayloadRepository) InsertPayload(ctx context.Context, payload *ser
 		payload.RequestBytes,
 		payload.ResponseBytes,
 	)
-
-	return err
+	if err != nil {
+		return fmt.Errorf("insert usage payload: %w", err)
+	}
+	return nil
 }
 
-// GetPayloadByUsageLogID 按 usage_log_id 查询 payload
+// GetPayloadByUsageLogID 根据 usage_log_id 查询正文
 func (r *usagePayloadRepository) GetPayloadByUsageLogID(ctx context.Context, usageLogID int64) (*service.UsageLogPayload, error) {
 	query := `
-		SELECT
-			usage_log_id, request_id, api_key_id, user_id,
+		SELECT usage_log_id, request_id, api_key_id, user_id,
 			request_body, response_body,
 			request_truncated, response_truncated,
 			request_bytes, response_bytes,
@@ -65,7 +67,7 @@ func (r *usagePayloadRepository) GetPayloadByUsageLogID(ctx context.Context, usa
 	`
 
 	var payload service.UsageLogPayload
-	err := r.db.QueryRowContext(ctx, query, usageLogID).Scan(
+	err := scanSingleRow(ctx, r.sql, query, []any{usageLogID},
 		&payload.UsageLogID,
 		&payload.RequestID,
 		&payload.APIKeyID,
@@ -78,23 +80,25 @@ func (r *usagePayloadRepository) GetPayloadByUsageLogID(ctx context.Context, usa
 		&payload.ResponseBytes,
 		&payload.CreatedAt,
 	)
-
 	if err == sql.ErrNoRows {
-		return nil, nil // 未采集返回 nil，不是错误
+		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("query usage_log_payloads: %w", err)
+		return nil, fmt.Errorf("query usage payload: %w", err)
 	}
-
 	return &payload, nil
 }
 
-// DeletePayloadsBefore 删除指定时间之前的 payloads（配合 usage_logs 清理）
+// DeletePayloadsBefore 按 created_at cutoff（unix 秒）删除 sidecar，避免正文比用量行活得更久
 func (r *usagePayloadRepository) DeletePayloadsBefore(ctx context.Context, before int64) (int64, error) {
-	query := `DELETE FROM usage_log_payloads WHERE created_at < to_timestamp($1)`
-	result, err := r.sql.ExecContext(ctx, query, before)
+	cutoff := time.Unix(before, 0).UTC()
+	res, err := r.sql.ExecContext(ctx, `DELETE FROM usage_log_payloads WHERE created_at < $1`, cutoff)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("delete usage payloads: %w", err)
 	}
-	return result.RowsAffected()
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("delete usage payloads rows affected: %w", err)
+	}
+	return affected, nil
 }
