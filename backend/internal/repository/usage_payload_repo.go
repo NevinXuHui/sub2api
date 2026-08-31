@@ -9,7 +9,7 @@ import (
 )
 
 type usagePayloadRepository struct {
-	sql sqlExecutor
+	db sqlExecutor
 }
 
 // NewUsagePayloadRepository 创建 payload 仓储
@@ -34,7 +34,7 @@ func (r *usagePayloadRepository) InsertPayload(ctx context.Context, payload *ser
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 	`
 
-	_, err := r.sql.ExecContext(ctx, query,
+	_, err := r.db.ExecContext(ctx, query,
 		payload.UsageLogID,
 		payload.RequestID,
 		payload.APIKeyID,
@@ -66,8 +66,10 @@ func (r *usagePayloadRepository) GetPayloadByUsageLogID(ctx context.Context, usa
 
 	var payload service.UsageLogPayload
 	err := r.db.QueryRowContext(ctx, query, usageLogID).Scan(
-		&payload.ID,
 		&payload.UsageLogID,
+		&payload.RequestID,
+		&payload.APIKeyID,
+		&payload.UserID,
 		&payload.RequestBody,
 		&payload.ResponseBody,
 		&payload.RequestTruncated,
