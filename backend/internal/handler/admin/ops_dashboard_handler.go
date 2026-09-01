@@ -351,3 +351,51 @@ func parseOpsQueryMode(c *gin.Context) service.OpsQueryMode {
 	}
 	return service.ParseOpsQueryMode(raw)
 }
+
+// GetModelBreakdown returns per-model metrics breakdown.
+// GET /api/v1/admin/ops/dashboard/model-breakdown
+func (h *OpsHandler) GetModelBreakdown(c *gin.Context) {
+	if h.opsService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
+		return
+	}
+	if err := h.opsService.RequireMonitoringEnabled(c.Request.Context()); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	startTime, endTime, err := parseOpsTimeRange(c, "1h")
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	filter := &service.OpsModelBreakdownFilter{
+		StartTime: startTime,
+		EndTime:   endTime,
+		Platform:  strings.TrimSpace(c.Query("platform")),
+	}
+	if v := strings.TrimSpace(c.Query("group_id")); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id <= 0 {
+			response.BadRequest(c, "Invalid group_id")
+			return
+		}
+		filter.GroupID = &id
+	}
+	if v := strings.TrimSpace(c.Query("top_n")); v != "" {
+		topN, err := strconv.Atoi(v)
+		if err != nil || topN <= 0 {
+			response.BadRequest(c, "Invalid top_n")
+			return
+		}
+		filter.TopN = topN
+	}
+
+	data, err := h.opsService.GetModelBreakdown(c.Request.Context(), filter)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, data)
+}
