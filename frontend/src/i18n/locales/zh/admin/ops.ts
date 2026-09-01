@@ -113,6 +113,10 @@ export default {
       other: '其他',
       errorsSla: '错误（SLA范围）',
       upstreamExcl429529: '上游（排除429/529）',
+      modelSelect: {
+        all: '全部模型',
+        title: '模型筛选'
+      },
       failedToLoadData: '加载运维数据失败',
       failedToLoadOverview: '加载概览数据失败',
       failedToLoadThroughputTrend: '加载吞吐趋势失败',
@@ -806,7 +810,6 @@ export default {
         ttft: '首 Token 延迟（Time To First Token），衡量流式响应的首 Token 返回速度。',
         health: '系统健康评分（0-100），综合考虑 SLA、错误率和资源使用情况。'
       },
-    modelMetrics: {
     modelOverview: {
       title: '各模型概览',
       noData: '暂无数据',
@@ -816,6 +819,7 @@ export default {
       avgResponse: '平均响应',
       requests: '请求数'
     },
+    modelMetrics: {
       title: '各模型性能指标',
       noData: '暂无数据',
       model: '模型',

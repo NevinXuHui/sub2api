@@ -7,7 +7,7 @@ import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { adminAPI } from '@/api'
-import { opsAPI, type OpsDashboardOverview, type OpsMetricThresholds, type OpsRealtimeTrafficSummary } from '@/api/admin/ops'
+import { opsAPI, type OpsDashboardOverview, type OpsMetricThresholds, type OpsRealtimeTrafficSummary, getModelBreakdown, type OpsModelBreakdownItem } from '@/api/admin/ops'
 import type { OpsRequestDetailsPreset } from './OpsRequestDetailsModal.vue'
 import { useAdminSettingsStore } from '@/stores'
 import { formatNumber } from '@/utils/format'
@@ -53,6 +53,53 @@ const { t } = useI18n()
 const adminSettingsStore = useAdminSettingsStore()
 
 const realtimeWindow = ref<RealtimeWindow>('1min')
+
+// --- Model filter ---
+const selectedModel = ref<string>('')
+const availableModels = ref<string[]>([])
+const loadingModels = ref(false)
+
+const modelOptions = computed(() => [
+  { value: '', label: t('admin.ops.modelSelect.all') },
+  ...availableModels.value.map((m) => ({ value: m, label: m }))
+])
+
+async function loadAvailableModels() {
+  if (loadingModels.value) return
+  loadingModels.value = true
+  try {
+    const params: any = {}
+    if (props.customStartTime && props.customEndTime) {
+      params.start_time = props.customStartTime
+      params.end_time = props.customEndTime
+    } else {
+      params.time_range = props.timeRange
+    }
+    if (props.platform) params.platform = props.platform
+    if (props.groupId !== null) params.group_id = props.groupId
+    params.top_n = 50
+
+    const resp = await getModelBreakdown(params)
+    availableModels.value = (resp.items || []).map((item) => item.model)
+  } catch (err) {
+    console.error('[OpsDashboardHeader] Failed to load models', err)
+    availableModels.value = []
+  } finally {
+    loadingModels.value = false
+  }
+}
+
+function handleModelChange(val: string | number | boolean | null) {
+  selectedModel.value = String(val || '')
+}
+
+watch(
+  () => [props.platform, props.groupId, props.timeRange, props.customStartTime, props.customEndTime] as const,
+  () => {
+    loadAvailableModels()
+  },
+  { immediate: true }
+)
 
 const overview = computed(() => props.overview ?? null)
 const systemMetrics = computed(() => overview.value?.system_metrics ?? null)
@@ -273,9 +320,6 @@ function getThresholdColorClass(level: ThresholdLevel): string {
 
 // --- Realtime / Overview labels ---
 
-const totalRequestsLabel = computed(() => formatNumber(overview.value?.request_count_total ?? 0))
-const totalTokensLabel = computed(() => formatNumber(overview.value?.token_consumed ?? 0))
-
 const realtimeTrafficSummary = ref<OpsRealtimeTrafficSummary | null>(null)
 const realtimeTrafficLoading = ref(false)
 
@@ -377,13 +421,13 @@ const realtimeTpsAvgLabel = computed(() => {
 })
 
 const qpsAvgLabel = computed(() => {
-  const v = overview.value?.qps?.avg
+  const v = displayQpsAvg.value
   if (typeof v !== 'number') return '-'
   return v.toFixed(1)
 })
 
 const tpsAvgLabel = computed(() => {
-  const v = overview.value?.tps?.avg
+  const v = displayTpsAvg.value
   if (typeof v !== 'number') return '-'
   return v.toFixed(1)
 })
@@ -407,19 +451,213 @@ const upstreamErrorRatePercent = computed(() => {
   return v * 100
 })
 
-const durationP99Ms = computed(() => overview.value?.duration?.p99_ms ?? null)
-const durationP95Ms = computed(() => overview.value?.duration?.p95_ms ?? null)
-const durationP90Ms = computed(() => overview.value?.duration?.p90_ms ?? null)
-const durationP50Ms = computed(() => overview.value?.duration?.p50_ms ?? null)
-const durationAvgMs = computed(() => overview.value?.duration?.avg_ms ?? null)
-const durationMaxMs = computed(() => overview.value?.duration?.max_ms ?? null)
+// --- Model-specific KPI data ---
+const modelBreakdownData = ref<OpsModelBreakdownItem | null>(null)
+const loadingModelData = ref(false)
 
-const ttftP99Ms = computed(() => overview.value?.ttft?.p99_ms ?? null)
-const ttftP95Ms = computed(() => overview.value?.ttft?.p95_ms ?? null)
-const ttftP90Ms = computed(() => overview.value?.ttft?.p90_ms ?? null)
-const ttftP50Ms = computed(() => overview.value?.ttft?.p50_ms ?? null)
-const ttftAvgMs = computed(() => overview.value?.ttft?.avg_ms ?? null)
-const ttftMaxMs = computed(() => overview.value?.ttft?.max_ms ?? null)
+async function loadModelBreakdownData() {
+  if (!selectedModel.value) {
+    modelBreakdownData.value = null
+    return
+  }
+  if (loadingModelData.value) return
+
+  loadingModelData.value = true
+  try {
+    const params: any = {}
+    if (props.customStartTime && props.customEndTime) {
+      params.start_time = props.customStartTime
+      params.end_time = props.customEndTime
+    } else {
+      params.time_range = props.timeRange
+    }
+    if (props.platform) params.platform = props.platform
+    if (props.groupId !== null) params.group_id = props.groupId
+    params.top_n = 50
+
+    const resp = await getModelBreakdown(params)
+    const item = (resp.items || []).find((it) => it.model === selectedModel.value)
+    modelBreakdownData.value = item || null
+  } catch (err) {
+    console.error('[OpsDashboardHeader] Failed to load model breakdown', err)
+    modelBreakdownData.value = null
+  } finally {
+    loadingModelData.value = false
+  }
+}
+
+watch(
+  () => [selectedModel.value, props.platform, props.groupId, props.timeRange, props.customStartTime, props.customEndTime] as const,
+  () => {
+    loadModelBreakdownData()
+  },
+  { immediate: true }
+)
+
+// Display values: use model-specific data when a model is selected, otherwise use overview
+const displayRequestsTotal = computed(() => {
+  if (modelBreakdownData.value) {
+    return modelBreakdownData.value.request_count
+  }
+  return overview.value?.request_count_total ?? 0
+})
+
+const displayTokensTotal = computed(() => {
+  if (modelBreakdownData.value) {
+    return modelBreakdownData.value.total_tokens
+  }
+  return overview.value?.token_consumed ?? 0
+})
+
+const displayQpsAvg = computed(() => {
+  if (modelBreakdownData.value) {
+    return modelBreakdownData.value.qps
+  }
+  return overview.value?.qps?.avg ?? 0
+})
+
+const displayTpsAvg = computed(() => {
+  if (modelBreakdownData.value) {
+    const windowSec = (new Date(props.customEndTime || Date.now()).getTime() - new Date(props.customStartTime || Date.now() - 3600000).getTime()) / 1000
+    return modelBreakdownData.value.total_tokens / (windowSec > 0 ? windowSec : 1)
+  }
+  return overview.value?.tps?.avg ?? 0
+})
+
+const displaySlaPercent = computed(() => {
+  if (modelBreakdownData.value) {
+    const sla = modelBreakdownData.value.success_count / (modelBreakdownData.value.request_count || 1)
+    return sla * 100
+  }
+  return slaPercent.value
+})
+
+const displayErrorRatePercent = computed(() => {
+  if (modelBreakdownData.value) {
+    return modelBreakdownData.value.error_rate * 100
+  }
+  return errorRatePercent.value
+})
+
+const displayUpstreamErrorRatePercent = computed(() => {
+  if (modelBreakdownData.value) {
+    // Model breakdown doesn't have upstream rate directly, use overall error rate as approximation
+    return null
+  }
+  return upstreamErrorRatePercent.value
+})
+
+const displayDurationP99Ms = computed(() => {
+  if (modelBreakdownData.value) {
+    return modelBreakdownData.value.p99_duration_ms
+  }
+  return overview.value?.duration?.p99_ms ?? null
+})
+
+const displayDurationP95Ms = computed(() => {
+  if (modelBreakdownData.value) {
+    return modelBreakdownData.value.p95_duration_ms
+  }
+  return overview.value?.duration?.p95_ms ?? null
+})
+
+const displayDurationP90Ms = computed(() => {
+  if (modelBreakdownData.value) {
+    return modelBreakdownData.value.p50_duration_ms // Model breakdown has no P90, use P50 as fallback
+  }
+  return overview.value?.duration?.p90_ms ?? null
+})
+
+const displayDurationP50Ms = computed(() => {
+  if (modelBreakdownData.value) {
+    return modelBreakdownData.value.p50_duration_ms
+  }
+  return overview.value?.duration?.p50_ms ?? null
+})
+
+const displayDurationAvgMs = computed(() => {
+  if (modelBreakdownData.value) {
+    return modelBreakdownData.value.avg_duration_ms
+  }
+  return overview.value?.duration?.avg_ms ?? null
+})
+
+const displayDurationMaxMs = computed(() => {
+  if (modelBreakdownData.value) {
+    return null // Model breakdown doesn't have max
+  }
+  return overview.value?.duration?.max_ms ?? null
+})
+
+const displayTtftP99Ms = computed(() => {
+  if (modelBreakdownData.value) {
+    return modelBreakdownData.value.p99_ttft_ms
+  }
+  return overview.value?.ttft?.p99_ms ?? null
+})
+
+const displayTtftP95Ms = computed(() => {
+  if (modelBreakdownData.value) {
+    return null // Model breakdown has no TTFT P95
+  }
+  return overview.value?.ttft?.p95_ms ?? null
+})
+
+const displayTtftP90Ms = computed(() => {
+  if (modelBreakdownData.value) {
+    return null // Model breakdown has no TTFT P90
+  }
+  return overview.value?.ttft?.p90_ms ?? null
+})
+
+const displayTtftP50Ms = computed(() => {
+  if (modelBreakdownData.value) {
+    return null // Model breakdown has no TTFT P50
+  }
+  return overview.value?.ttft?.p50_ms ?? null
+})
+
+const displayTtftAvgMs = computed(() => {
+  if (modelBreakdownData.value) {
+    return modelBreakdownData.value.avg_ttft_ms
+  }
+  return overview.value?.ttft?.avg_ms ?? null
+})
+
+const displayTtftMaxMs = computed(() => {
+  if (modelBreakdownData.value) {
+    return null // Model breakdown has no TTFT max
+  }
+  return overview.value?.ttft?.max_ms ?? null
+})
+
+const displayErrorCount = computed(() => {
+  if (modelBreakdownData.value) {
+    return modelBreakdownData.value.error_count
+  }
+  return overview.value?.error_count_sla ?? 0
+})
+
+const displayBusinessLimited = computed(() => {
+  if (modelBreakdownData.value) {
+    return 0 // Model breakdown doesn't distinguish business limited
+  }
+  return overview.value?.business_limited_count ?? 0
+})
+
+const displayUpstreamErrorExcl = computed(() => {
+  if (modelBreakdownData.value) {
+    return 0 // Model breakdown doesn't have upstream details
+  }
+  return overview.value?.upstream_error_count_excl_429_529 ?? 0
+})
+
+const displayUpstream429529 = computed(() => {
+  if (modelBreakdownData.value) {
+    return 0
+  }
+  return (overview.value?.upstream_429_count ?? 0) + (overview.value?.upstream_529_count ?? 0)
+})
 
 // --- Health Score & Diagnosis (primary) ---
 
@@ -917,6 +1155,13 @@ function handleToolbarRefresh() {
             class="relative w-full sm:w-[150px]"
             @update:model-value="handleTimeRangeChange"
           />
+
+          <Select
+            :model-value="selectedModel"
+            :options="modelOptions"
+            class="relative w-full sm:w-[160px]"
+            @update:model-value="handleModelChange"
+          />
         </template>
 
         <Select
@@ -1227,11 +1472,11 @@ function handleToolbarRefresh() {
           <div class="mt-2 space-y-2 text-xs">
             <div class="flex justify-between">
               <span class="text-gray-500">{{ t('admin.ops.requests') }}:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ totalRequestsLabel }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber(displayRequestsTotal) }}</span>
             </div>
             <div class="flex justify-between">
               <span class="text-gray-500">{{ t('admin.ops.tokens') }}:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ totalTokensLabel }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber(displayTokensTotal) }}</span>
             </div>
             <div class="flex justify-between">
               <span class="text-gray-500">{{ t('admin.ops.avgQps') }}:</span>
@@ -1250,7 +1495,7 @@ function handleToolbarRefresh() {
             <div class="flex items-center gap-2">
               <span class="text-[10px] font-bold uppercase text-gray-400">{{ t('admin.ops.sla') }}</span>
               <HelpTooltip v-if="!props.fullscreen" :content="t('admin.ops.tooltips.sla')" />
-              <span class="h-1.5 w-1.5 rounded-full" :class="getSLAThresholdLevel(slaPercent) === 'critical' ? 'bg-red-500' : getSLAThresholdLevel(slaPercent) === 'warning' ? 'bg-yellow-500' : 'bg-green-500'"></span>
+              <span class="h-1.5 w-1.5 rounded-full" :class="getSLAThresholdLevel(displaySlaPercent) === 'critical' ? 'bg-red-500' : getSLAThresholdLevel(displaySlaPercent) === 'warning' ? 'bg-yellow-500' : 'bg-green-500'"></span>
             </div>
             <button
               v-if="!props.fullscreen"
@@ -1261,16 +1506,16 @@ function handleToolbarRefresh() {
               {{ t('admin.ops.requestDetails.details') }}
             </button>
           </div>
-          <div class="mt-2 text-3xl font-black" :class="getThresholdColorClass(getSLAThresholdLevel(slaPercent))">
-            {{ slaPercent == null ? '-' : `${slaPercent.toFixed(3)}%` }}
+          <div class="mt-2 text-3xl font-black" :class="getThresholdColorClass(getSLAThresholdLevel(displaySlaPercent))">
+            {{ displaySlaPercent == null ? '-' : `${displaySlaPercent.toFixed(3)}%` }}
           </div>
           <div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-700">
-            <div class="h-full transition-all" :class="getSLAThresholdLevel(slaPercent) === 'critical' ? 'bg-red-500' : getSLAThresholdLevel(slaPercent) === 'warning' ? 'bg-yellow-500' : 'bg-green-500'" :style="{ width: `${Math.max((slaPercent ?? 0) - 90, 0) * 10}%` }"></div>
+            <div class="h-full transition-all" :class="getSLAThresholdLevel(displaySlaPercent) === 'critical' ? 'bg-red-500' : getSLAThresholdLevel(displaySlaPercent) === 'warning' ? 'bg-yellow-500' : 'bg-green-500'" :style="{ width: `${Math.max((displaySlaPercent ?? 0) - 90, 0) * 10}%` }"></div>
           </div>
           <div class="mt-3 text-xs">
             <div class="flex justify-between">
               <span class="text-gray-500">{{ t('admin.ops.exceptions') }}:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber((overview.request_count_sla ?? 0) - (overview.success_count ?? 0)) }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber(displayErrorCount) }}</span>
             </div>
           </div>
         </div>
@@ -1293,34 +1538,34 @@ function handleToolbarRefresh() {
           </div>
           <div class="mt-2 flex items-baseline gap-2">
             <div class="text-3xl font-black text-gray-900 dark:text-white">
-              {{ durationP99Ms ?? '-' }}
+              {{ displayDurationP99Ms ?? '-' }}
             </div>
             <span class="text-xs font-bold text-gray-400">ms (P99)</span>
           </div>
           <div class="mt-3 grid grid-cols-1 gap-x-3 gap-y-1 text-xs 2xl:grid-cols-2">
             <div class="flex items-baseline gap-1 whitespace-nowrap">
               <span class="text-gray-500">P95:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ durationP95Ms ?? '-' }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ displayDurationP95Ms ?? '-' }}</span>
               <span class="text-gray-400">ms</span>
             </div>
             <div class="flex items-baseline gap-1 whitespace-nowrap">
               <span class="text-gray-500">P90:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ durationP90Ms ?? '-' }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ displayDurationP90Ms ?? '-' }}</span>
               <span class="text-gray-400">ms</span>
             </div>
             <div class="flex items-baseline gap-1 whitespace-nowrap">
               <span class="text-gray-500">P50:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ durationP50Ms ?? '-' }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ displayDurationP50Ms ?? '-' }}</span>
               <span class="text-gray-400">ms</span>
             </div>
             <div class="flex items-baseline gap-1 whitespace-nowrap">
               <span class="text-gray-500">Avg:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ durationAvgMs ?? '-' }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ displayDurationAvgMs ?? '-' }}</span>
               <span class="text-gray-400">ms</span>
             </div>
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
+            <div v-if="displayDurationMaxMs !== null" class="flex items-baseline gap-1 whitespace-nowrap">
               <span class="text-gray-500">Max:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ durationMaxMs ?? '-' }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ displayDurationMaxMs ?? '-' }}</span>
               <span class="text-gray-400">ms</span>
             </div>
           </div>
@@ -1343,35 +1588,35 @@ function handleToolbarRefresh() {
             </button>
           </div>
           <div class="mt-2 flex items-baseline gap-2">
-            <div class="text-3xl font-black" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftP99Ms))">
-              {{ ttftP99Ms ?? '-' }}
+            <div class="text-3xl font-black" :class="getThresholdColorClass(getTTFTThresholdLevel(displayTtftP99Ms))">
+              {{ displayTtftP99Ms ?? '-' }}
             </div>
             <span class="text-xs font-bold text-gray-400">ms (P99)</span>
           </div>
           <div class="mt-3 grid grid-cols-1 gap-x-3 gap-y-1 text-xs 2xl:grid-cols-2">
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
+            <div v-if="displayTtftP95Ms !== null" class="flex items-baseline gap-1 whitespace-nowrap">
               <span class="text-gray-500">P95:</span>
-              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftP95Ms))">{{ ttftP95Ms ?? '-' }}</span>
+              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(displayTtftP95Ms))">{{ displayTtftP95Ms ?? '-' }}</span>
               <span class="text-gray-400">ms</span>
             </div>
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
+            <div v-if="displayTtftP90Ms !== null" class="flex items-baseline gap-1 whitespace-nowrap">
               <span class="text-gray-500">P90:</span>
-              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftP90Ms))">{{ ttftP90Ms ?? '-' }}</span>
+              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(displayTtftP90Ms))">{{ displayTtftP90Ms ?? '-' }}</span>
               <span class="text-gray-400">ms</span>
             </div>
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
+            <div v-if="displayTtftP50Ms !== null" class="flex items-baseline gap-1 whitespace-nowrap">
               <span class="text-gray-500">P50:</span>
-              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftP50Ms))">{{ ttftP50Ms ?? '-' }}</span>
+              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(displayTtftP50Ms))">{{ displayTtftP50Ms ?? '-' }}</span>
               <span class="text-gray-400">ms</span>
             </div>
             <div class="flex items-baseline gap-1 whitespace-nowrap">
               <span class="text-gray-500">Avg:</span>
-              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftAvgMs))">{{ ttftAvgMs ?? '-' }}</span>
+              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(displayTtftAvgMs))">{{ displayTtftAvgMs ?? '-' }}</span>
               <span class="text-gray-400">ms</span>
             </div>
-            <div class="flex items-baseline gap-1 whitespace-nowrap">
+            <div v-if="displayTtftMaxMs !== null" class="flex items-baseline gap-1 whitespace-nowrap">
               <span class="text-gray-500">Max:</span>
-              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(ttftMaxMs))">{{ ttftMaxMs ?? '-' }}</span>
+              <span class="font-bold" :class="getThresholdColorClass(getTTFTThresholdLevel(displayTtftMaxMs))">{{ displayTtftMaxMs ?? '-' }}</span>
               <span class="text-gray-400">ms</span>
             </div>
           </div>
@@ -1388,17 +1633,17 @@ function handleToolbarRefresh() {
               {{ t('admin.ops.requestDetails.details') }}
             </button>
           </div>
-          <div class="mt-2 text-3xl font-black" :class="getThresholdColorClass(getRequestErrorRateThresholdLevel(errorRatePercent))">
-            {{ errorRatePercent == null ? '-' : `${errorRatePercent.toFixed(2)}%` }}
+          <div class="mt-2 text-3xl font-black" :class="getThresholdColorClass(getRequestErrorRateThresholdLevel(displayErrorRatePercent))">
+            {{ displayErrorRatePercent == null ? '-' : `${displayErrorRatePercent.toFixed(2)}%` }}
           </div>
           <div class="mt-3 space-y-1 text-xs">
             <div class="flex justify-between">
               <span class="text-gray-500">{{ t('admin.ops.errorCount') }}:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber(overview.error_count_sla ?? 0) }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber(displayErrorCount) }}</span>
             </div>
-            <div class="flex justify-between">
+            <div v-if="displayBusinessLimited > 0" class="flex justify-between">
               <span class="text-gray-500">{{ t('admin.ops.businessLimited') }}:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber(overview.business_limited_count ?? 0) }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber(displayBusinessLimited) }}</span>
             </div>
           </div>
         </div>
@@ -1414,17 +1659,18 @@ function handleToolbarRefresh() {
               {{ t('admin.ops.requestDetails.details') }}
             </button>
           </div>
-          <div class="mt-2 text-3xl font-black" :class="getThresholdColorClass(getUpstreamErrorRateThresholdLevel(upstreamErrorRatePercent))">
-            {{ upstreamErrorRatePercent == null ? '-' : `${upstreamErrorRatePercent.toFixed(2)}%` }}
+          <div v-if="displayUpstreamErrorRatePercent !== null" class="mt-2 text-3xl font-black" :class="getThresholdColorClass(getUpstreamErrorRateThresholdLevel(displayUpstreamErrorRatePercent))">
+            {{ displayUpstreamErrorRatePercent == null ? '-' : `${displayUpstreamErrorRatePercent.toFixed(2)}%` }}
           </div>
+          <div v-else class="mt-2 text-3xl font-black text-gray-400">N/A</div>
           <div class="mt-3 space-y-1 text-xs">
             <div class="flex justify-between">
               <span class="text-gray-500">{{ t('admin.ops.errorCountExcl429529') }}:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber(overview.upstream_error_count_excl_429_529 ?? 0) }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber(displayUpstreamErrorExcl) }}</span>
             </div>
             <div class="flex justify-between">
               <span class="text-gray-500">429/529:</span>
-              <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber((overview.upstream_429_count ?? 0) + (overview.upstream_529_count ?? 0)) }}</span>
+              <span class="font-bold text-gray-900 dark:text-white">{{ formatNumber(displayUpstream429529) }}</span>
             </div>
           </div>
         </div>

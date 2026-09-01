@@ -113,6 +113,10 @@ export default {
       other: 'Other',
       errorsSla: 'Errors (SLA scope)',
       upstreamExcl429529: 'Upstream (excl 429/529)',
+      modelSelect: {
+        all: 'All Models',
+        title: 'Model Filter'
+      },
       failedToLoadData: 'Failed to load ops data.',
       failedToLoadOverview: 'Failed to load overview',
       failedToLoadThroughputTrend: 'Failed to load throughput trend',
@@ -805,7 +809,6 @@ export default {
         ttft: 'Time To First Token, measuring the speed of first token return in streaming responses.',
         health: 'System health score (0-100), considering SLA, error rate, and resource usage.'
       },
-    modelMetrics: {
     modelOverview: {
       title: 'Per-Model Overview',
       noData: 'No data available',
@@ -815,6 +818,7 @@ export default {
       avgResponse: 'Avg Response',
       requests: 'Requests'
     },
+    modelMetrics: {
       title: 'Per-Model Performance Metrics',
       noData: 'No data available',
       model: 'Model',
