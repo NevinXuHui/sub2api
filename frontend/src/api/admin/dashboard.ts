@@ -25,6 +25,21 @@ export async function getStats(): Promise<DashboardStats> {
   return data
 }
 
+export interface ModelPerformanceStat {
+  model: string
+  rpm: number
+  tpm: number
+}
+
+/**
+ * Get per-model performance (RPM/TPM)
+ * @returns Array of model performance stats
+ */
+export async function getModelPerformance(): Promise<ModelPerformanceStat[]> {
+  const { data } = await apiClient.get<ModelPerformanceStat[]>('/admin/dashboard/model-performance')
+  return data
+}
+
 /**
  * Get real-time metrics
  * @returns Real-time system metrics
@@ -333,6 +348,7 @@ export async function getBatchApiKeysUsage(
 
 export const dashboardAPI = {
   getStats,
+  getModelPerformance,
   getRealtimeMetrics,
   getUsageTrend,
   getModelStats,

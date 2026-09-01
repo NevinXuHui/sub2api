@@ -169,7 +169,7 @@
             </div>
           </div>
 
-          <!-- Performance (RPM/TPM) -->
+          <!-- Performance (RPM/TPM) - Multi-Model Display -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
               <div class="rounded-lg bg-violet-100 p-2 dark:bg-violet-900/30">
@@ -179,17 +179,22 @@
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.performance') }}
                 </p>
-                <div class="flex items-baseline gap-2">
-                  <p class="text-xl font-bold text-gray-900 dark:text-white">
-                    {{ formatTokens(stats.rpm) }}
-                  </p>
-                  <span class="text-xs text-gray-500 dark:text-gray-400">RPM</span>
+                <div v-if="modelPerformance.length === 0" class="mt-2">
+                  <LoadingSpinner size="sm" />
                 </div>
-                <div class="flex items-baseline gap-2">
-                  <p class="text-sm font-semibold text-violet-600 dark:text-violet-400">
-                    {{ formatTokens(stats.tpm) }}
-                  </p>
-                  <span class="text-xs text-gray-500 dark:text-gray-400">TPM</span>
+                <div v-else class="mt-2 max-h-24 space-y-1.5 overflow-y-auto text-xs">
+                  <div v-for="(item, idx) in modelPerformance" :key="idx" class="flex items-baseline justify-between gap-2">
+                    <span class="truncate font-medium" :class="item.model === 'all' ? 'text-violet-600 dark:text-violet-400' : 'text-gray-600 dark:text-gray-400'" :title="item.model">
+                      {{ item.model === 'all' ? t('common.all') : item.model }}
+                    </span>
+                    <div class="flex shrink-0 items-baseline gap-2">
+                      <span class="font-bold text-gray-900 dark:text-white">{{ formatTokens(item.rpm) }}</span>
+                      <span class="text-[10px] text-gray-400">RPM</span>
+                      <span class="text-gray-300 dark:text-gray-700">|</span>
+                      <span class="font-semibold text-gray-700 dark:text-gray-300">{{ formatTokens(item.tpm) }}</span>
+                      <span class="text-[10px] text-gray-400">TPM</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -405,6 +410,7 @@ const rankingItems = ref<UserSpendingRankingItem[]>([])
 const rankingTotalActualCost = ref(0)
 const rankingTotalRequests = ref(0)
 const rankingTotalTokens = ref(0)
+const modelPerformance = ref<Array<{ model: string; rpm: number; tpm: number }>>([])
 let chartLoadSeq = 0
 let usersTrendLoadSeq = 0
 let rankingLoadSeq = 0
@@ -736,7 +742,8 @@ const loadDashboardStats = async () => {
   await Promise.all([
     loadDashboardSnapshot(true),
     loadUsersTrend(),
-    loadUserSpendingRanking()
+    loadUserSpendingRanking(),
+    loadModelPerformance()
   ])
 }
 
@@ -746,6 +753,16 @@ const loadChartData = async () => {
     loadUsersTrend(),
     loadUserSpendingRanking()
   ])
+}
+
+const loadModelPerformance = async () => {
+  try {
+    const data = await adminAPI.dashboard.getModelPerformance()
+    modelPerformance.value = data || []
+  } catch (error) {
+    console.error('Error loading model performance:', error)
+    modelPerformance.value = []
+  }
 }
 
 onMounted(() => {
