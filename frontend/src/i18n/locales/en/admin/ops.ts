@@ -806,6 +806,15 @@ export default {
         health: 'System health score (0-100), considering SLA, error rate, and resource usage.'
       },
     modelMetrics: {
+    modelOverview: {
+      title: 'Per-Model Overview',
+      noData: 'No data available',
+      todayTokens: 'Today Tokens',
+      tokens: 'Total Tokens',
+      cost: 'Cost',
+      avgResponse: 'Avg Response',
+      requests: 'Requests'
+    },
       title: 'Per-Model Performance Metrics',
       noData: 'No data available',
       model: 'Model',

@@ -78,10 +78,6 @@ function formatTokens(tokens: number): string {
   return formatNumber(tokens)
 }
 
-function formatTPS(tps: number | null): string {
-  if (tps === null || tps === undefined) return '-'
-  return tps.toFixed(1)
-}
 
 function getErrorRateClass(rate: number): string {
   if (rate >= 0.1) return 'text-red-600 dark:text-red-400 font-semibold'

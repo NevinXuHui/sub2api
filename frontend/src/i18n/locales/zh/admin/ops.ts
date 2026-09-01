@@ -807,6 +807,15 @@ export default {
         health: '系统健康评分（0-100），综合考虑 SLA、错误率和资源使用情况。'
       },
     modelMetrics: {
+    modelOverview: {
+      title: '各模型概览',
+      noData: '暂无数据',
+      todayTokens: '今日Token',
+      tokens: 'Token总量',
+      cost: '成本',
+      avgResponse: '平均响应',
+      requests: '请求数'
+    },
       title: '各模型性能指标',
       noData: '暂无数据',
       model: '模型',
