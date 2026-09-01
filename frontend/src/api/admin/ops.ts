@@ -1359,3 +1359,50 @@ export const opsAPI = {
 }
 
 export default opsAPI
+
+// Model breakdown types
+export interface OpsModelBreakdownItem {
+  model: string
+  request_count: number
+  success_count: number
+  error_count: number
+  error_rate: number
+  total_input_tokens: number
+  total_output_tokens: number
+  total_tokens: number
+  avg_duration_ms: number | null
+  p50_duration_ms: number | null
+  p95_duration_ms: number | null
+  p99_duration_ms: number | null
+  avg_ttft_ms: number | null
+  p99_ttft_ms: number | null
+  avg_tokens_per_sec: number | null
+  qps: number
+}
+
+export interface OpsModelBreakdownResponse {
+  start_time: string
+  end_time: string
+  platform: string
+  group_id?: number | null
+  items: OpsModelBreakdownItem[]
+  total: number
+}
+
+export async function getModelBreakdown(
+  params: {
+  time_range?: '5m' | '30m' | '1h' | '6h' | '24h'
+  start_time?: string
+  end_time?: string
+  platform?: string
+  group_id?: number | null
+  top_n?: number
+  },
+  options: OpsRequestOptions = {}
+): Promise<OpsModelBreakdownResponse> {
+  const { data } = await apiClient.get<OpsModelBreakdownResponse>('/admin/ops/dashboard/model-breakdown', {
+    params,
+    signal: options.signal
+  })
+  return data
+}

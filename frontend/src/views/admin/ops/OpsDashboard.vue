@@ -93,6 +93,18 @@
         />
       </div>
 
+      <!-- Row: Model Metrics Breakdown -->
+      <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="grid grid-cols-1 gap-6">
+        <OpsModelMetricsTable
+          :platform="platform"
+          :group-id="groupId"
+          :time-range="timeRange"
+          :custom-start-time="customStartTime"
+          :custom-end-time="customEndTime"
+          :loading="loading"
+        />
+      </div>
+
       <!-- Alert Events -->
       <OpsAlertEventsCard v-if="opsEnabled && showAlertEvents && !(loading && !hasLoadedOnce)" />
 
@@ -169,6 +181,7 @@ import OpsThroughputTrendChart from './components/OpsThroughputTrendChart.vue'
 import OpsSwitchRateTrendChart from './components/OpsSwitchRateTrendChart.vue'
 import OpsAlertEventsCard from './components/OpsAlertEventsCard.vue'
 import OpsOpenAITokenStatsCard from './components/OpsOpenAITokenStatsCard.vue'
+import OpsModelMetricsTable from './components/OpsModelMetricsTable.vue'
 import OpsSystemLogTable from './components/OpsSystemLogTable.vue'
 import OpsRequestDetailsModal, { type OpsRequestDetailsPreset } from './components/OpsRequestDetailsModal.vue'
 import OpsSettingsDialog from './components/OpsSettingsDialog.vue'
