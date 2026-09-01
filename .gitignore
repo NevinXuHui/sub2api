@@ -157,3 +157,17 @@ output/
 .vite/
 # 本地闭源插件开发目录及构建产物不进入 Sub2API 仓库
 /plugins/
+
+# 本地数据文件和数据库数据
+/data/
+/postgres_data/
+/postgres_data.bak_*/
+/redis_data/
+*.dump
+
+# 本地测试和文档文件
+/test-*.html
+/FILTER_*.md
+
+# 本地 Docker Compose 配置
+/docker-compose.yml
