@@ -336,9 +336,9 @@ func (r *usageCleanupRepository) deleteUsageLogsBatchWithRollupInvalidation(ctx 
 		return 0, err
 	}
 
-	if err := lockGroupUsageRollupState(ctx, tx); err != nil {
-		return rollback(err)
-	}
+	// 删除 usage_logs 时不触发 rollup invalidation，保留已聚合的每日统计数据
+	// 原因：水位回退会导致重新聚合，但此时原始记录已被删除，会造成统计归零
+	// 已聚合的 daily_rollups 数据保持不变，保证每日使用量统计的正确性
 	query := fmt.Sprintf(`
 		WITH target AS (
 			SELECT id
@@ -352,39 +352,17 @@ func (r *usageCleanupRepository) deleteUsageLogsBatchWithRollupInvalidation(ctx 
 		)
 		DELETE FROM usage_logs
 		WHERE id IN (SELECT id FROM target)
-		RETURNING created_at
 	`, whereClause, len(args))
-	rows, err := tx.QueryContext(ctx, query, args...)
+	result, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return rollback(err)
 	}
 
-	var deleted int64
-	var earliestDeletedAt time.Time
-	for rows.Next() {
-		var deletedAt time.Time
-		if err := rows.Scan(&deletedAt); err != nil {
-			_ = rows.Close()
-			return rollback(err)
-		}
-		deleted++
-		if earliestDeletedAt.IsZero() || deletedAt.Before(earliestDeletedAt) {
-			earliestDeletedAt = deletedAt
-		}
-	}
-	if err := rows.Err(); err != nil {
-		_ = rows.Close()
-		return rollback(err)
-	}
-	if err := rows.Close(); err != nil {
+	deleted, err := result.RowsAffected()
+	if err != nil {
 		return rollback(err)
 	}
 
-	if deleted > 0 {
-		if err := invalidateGroupUsageRollupsAt(ctx, tx, earliestDeletedAt); err != nil {
-			return rollback(err)
-		}
-	}
 	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
