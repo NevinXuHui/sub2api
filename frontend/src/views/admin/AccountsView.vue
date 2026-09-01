@@ -493,6 +493,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import { useTableLoader } from '@/composables/useTableLoader'
+import { useFilterPersistence } from '@/composables/useFilterPersistence'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
@@ -1060,6 +1061,19 @@ const syncAccountListDerivedParams = () => {
   requestParams.include_scheduler_score = shouldIncludeSchedulerScore() ? '1' : '0'
 }
 
+const { filters: savedAccountFilters, updateFilters: persistAccountFilters } = useFilterPersistence(
+  'admin-accounts',
+  {
+    platform: '',
+    type: '',
+    status: '',
+    privacy_mode: '',
+    group: '',
+    search: '',
+    page: 1
+  }
+)
+
 const {
   items: accounts,
   loading,
@@ -1073,17 +1087,34 @@ const {
 } = useTableLoader<Account, any>({
   fetchFn: adminAPI.accounts.list,
   initialParams: {
-    platform: '',
-    type: '',
-    status: '',
-    privacy_mode: '',
-    group: '',
-    search: '',
+    platform: savedAccountFilters.value.platform,
+    type: savedAccountFilters.value.type,
+    status: savedAccountFilters.value.status,
+    privacy_mode: savedAccountFilters.value.privacy_mode,
+    group: savedAccountFilters.value.group,
+    search: savedAccountFilters.value.search,
     include_scheduler_score: shouldIncludeSchedulerScore() ? '1' : '0',
     sort_by: sortState.sort_by,
     sort_order: sortState.sort_order
   }
 })
+
+if (savedAccountFilters.value.page > 1) {
+  pagination.page = savedAccountFilters.value.page
+}
+
+watch(
+  () => ({
+    platform: String(params.platform ?? ''),
+    type: String(params.type ?? ''),
+    status: String(params.status ?? ''),
+    privacy_mode: String(params.privacy_mode ?? ''),
+    group: String(params.group ?? ''),
+    search: String(params.search ?? ''),
+    page: pagination.page
+  }),
+  (next) => persistAccountFilters(next)
+)
 
 const {
   selectedSet,
