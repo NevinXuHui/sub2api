@@ -295,7 +295,7 @@
                   <Select
                     v-model="granularity"
                     :options="granularityOptions"
-                    @change="loadChartData"
+                    @change="onGranularityChange"
                   />
                 </div>
               </div>
@@ -350,6 +350,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { useFilterPersistence } from '@/composables/useFilterPersistence'
 
 const { t } = useI18n()
 import { adminAPI } from '@/api/admin'
@@ -430,11 +431,26 @@ const getLast24HoursRangeDates = (): { start: string; end: string } => {
   }
 }
 
-// Date range
-const granularity = ref<'day' | 'hour'>('hour')
+// Date range - use filter persistence
 const defaultRange = getLast24HoursRangeDates()
-const startDate = ref(defaultRange.start)
-const endDate = ref(defaultRange.end)
+const { filters: dateFilters } = useFilterPersistence('admin-dashboard', {
+  startDate: defaultRange.start,
+  endDate: defaultRange.end,
+  granularity: 'hour' as 'day' | 'hour'
+})
+
+const granularity = computed({
+  get: () => dateFilters.value.granularity,
+  set: (val) => { dateFilters.value.granularity = val }
+})
+const startDate = computed({
+  get: () => dateFilters.value.startDate,
+  set: (val) => { dateFilters.value.startDate = val }
+})
+const endDate = computed({
+  get: () => dateFilters.value.endDate,
+  set: (val) => { dateFilters.value.endDate = val }
+})
 
 // Granularity options for Select component
 const granularityOptions = computed(() => [
@@ -634,6 +650,9 @@ const onDateRangeChange = (range: {
   endDate: string
   preset: string | null
 }) => {
+  startDate.value = range.startDate
+  endDate.value = range.endDate
+
   // Auto-select granularity based on date range
   const start = new Date(range.startDate)
   const end = new Date(range.endDate)
@@ -646,6 +665,11 @@ const onDateRangeChange = (range: {
     granularity.value = 'day'
   }
 
+  loadChartData()
+}
+
+// Granularity change handler
+const onGranularityChange = () => {
   loadChartData()
 }
 
