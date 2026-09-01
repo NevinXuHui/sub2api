@@ -301,6 +301,9 @@ func (r *usageCleanupRepository) DeleteUsageLogsBatch(ctx context.Context, filte
 			WHERE %s
 			ORDER BY created_at ASC, id ASC
 			LIMIT $%d
+		), deleted_payloads AS (
+			DELETE FROM usage_log_payloads
+			WHERE usage_log_id IN (SELECT id FROM target)
 		)
 		DELETE FROM usage_logs
 		WHERE id IN (SELECT id FROM target)
@@ -343,6 +346,9 @@ func (r *usageCleanupRepository) deleteUsageLogsBatchWithRollupInvalidation(ctx 
 			WHERE %s
 			ORDER BY created_at ASC, id ASC
 			LIMIT $%d
+		), deleted_payloads AS (
+			DELETE FROM usage_log_payloads
+			WHERE usage_log_id IN (SELECT id FROM target)
 		)
 		DELETE FROM usage_logs
 		WHERE id IN (SELECT id FROM target)

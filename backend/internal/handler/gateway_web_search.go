@@ -228,6 +228,7 @@ func (h *GatewayHandler) WebSearch(c *gin.Context) {
 			).Info("gateway.web_search.search_price_per_1k_explicit_free")
 		}
 	}
+	requestPayload, responsePayload := snapshotUsagePayloads(c, []byte(req.Query))
 	h.submitMandatoryUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
 		if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 			Result: &service.ForwardResult{
@@ -245,6 +246,8 @@ func (h *GatewayHandler) WebSearch(c *gin.Context) {
 			UserAgent:          userAgent,
 			IPAddress:          clientIP,
 			RequestPayloadHash: requestPayloadHash,
+			RequestPayload:     requestPayload,
+			ResponsePayload:    responsePayload,
 			APIKeyService:      h.apiKeyService,
 			QuotaPlatform:      quotaPlatform,
 		}); err != nil {

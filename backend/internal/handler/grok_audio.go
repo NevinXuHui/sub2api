@@ -320,6 +320,8 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 		model = endpoint
 	}
 
+	requestPayload, responsePayload := snapshotUsagePayloads(c, body)
+
 	h.submitMandatoryUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
 		if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 			Result:             result,
@@ -332,6 +334,8 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 			UserAgent:          userAgent,
 			IPAddress:          clientIP,
 			RequestPayloadHash: requestPayloadHash,
+			RequestPayload:     requestPayload,
+			ResponsePayload:    responsePayload,
 			APIKeyService:      h.apiKeyService,
 			QuotaPlatform:      quotaPlatform,
 			SessionID:          sessionID,

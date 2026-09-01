@@ -380,6 +380,9 @@ type UpdateSettingsRequest struct {
 	AuthSourceDingTalkPlatformQuotas map[string]*service.DefaultPlatformQuotaSetting `json:"auth_source_default_dingtalk_platform_quotas"`
 
 	AllowUserViewErrorRequests *bool `json:"allow_user_view_error_requests"`
+	UsagePayloadCaptureEnabled *bool `json:"usage_payload_capture_enabled"`
+	UsagePayloadMaxBytes       *int  `json:"usage_payload_max_bytes"`
+	AllowUserViewUsagePayloads *bool `json:"allow_user_view_usage_payloads"`
 }
 
 // UpdateSettings 更新系统设置
@@ -1654,6 +1657,24 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.AllowUserViewErrorRequests
 		}(),
+		UsagePayloadCaptureEnabled: func() bool {
+			if req.UsagePayloadCaptureEnabled != nil {
+				return *req.UsagePayloadCaptureEnabled
+			}
+			return previousSettings.UsagePayloadCaptureEnabled
+		}(),
+		UsagePayloadMaxBytes: func() int {
+			if req.UsagePayloadMaxBytes != nil {
+				return *req.UsagePayloadMaxBytes
+			}
+			return previousSettings.UsagePayloadMaxBytes
+		}(),
+		AllowUserViewUsagePayloads: func() bool {
+			if req.AllowUserViewUsagePayloads != nil {
+				return *req.AllowUserViewUsagePayloads
+			}
+			return previousSettings.AllowUserViewUsagePayloads
+		}(),
 		OpsMonitoringEnabled: func() bool {
 			if req.OpsMonitoringEnabled != nil {
 				return *req.OpsMonitoringEnabled
@@ -2385,6 +2406,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CyberSessionBlockTTLSeconds: updatedSettings.CyberSessionBlockTTLSeconds,
 		AccountSchedulingThresholds: updatedSettings.AccountSchedulingThresholds,
 		AllowUserViewErrorRequests:  updatedSettings.AllowUserViewErrorRequests,
+		UsagePayloadCaptureEnabled:  updatedSettings.UsagePayloadCaptureEnabled,
+		UsagePayloadMaxBytes:        updatedSettings.UsagePayloadMaxBytes,
+		AllowUserViewUsagePayloads:  updatedSettings.AllowUserViewUsagePayloads,
 	}
 	if fastPolicy, err := h.settingService.GetOpenAIFastPolicySettings(c.Request.Context()); err != nil {
 		slog.Error("openai_fast_policy_settings_get_failed", "error", err)

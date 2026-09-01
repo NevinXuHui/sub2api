@@ -576,6 +576,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 			longContextThreshold = rule.Threshold
 			longContextMultiplier = rule.Multiplier
 		}
+		requestPayload, responsePayload := snapshotUsagePayloads(c, body)
 		h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsageWithLongContext(ctx, &service.RecordUsageLongContextInput{
 				Result:                result,
@@ -590,6 +591,8 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				UserAgent:             userAgent,
 				IPAddress:             clientIP,
 				RequestPayloadHash:    requestPayloadHash,
+				RequestPayload:     requestPayload,
+				ResponsePayload:    responsePayload,
 				LongContextThreshold:  longContextThreshold,
 				LongContextMultiplier: longContextMultiplier,
 				ForceCacheBilling:     forceCacheBilling,

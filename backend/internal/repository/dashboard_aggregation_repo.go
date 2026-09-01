@@ -231,6 +231,9 @@ func (r *dashboardAggregationRepository) CleanupAggregates(ctx context.Context, 
 }
 
 func (r *dashboardAggregationRepository) CleanupUsageLogs(ctx context.Context, cutoff time.Time) error {
+	if _, err := r.sql.ExecContext(ctx, `DELETE FROM usage_log_payloads WHERE created_at < $1`, cutoff.UTC()); err != nil {
+		return err
+	}
 	isPartitioned, err := r.isUsageLogsPartitioned(ctx)
 	if err != nil {
 		return err

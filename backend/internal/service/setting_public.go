@@ -374,6 +374,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		RiskControlEnabled: settings[SettingKeyRiskControlEnabled] == "true",
 
 		AllowUserViewErrorRequests: settings[SettingKeyAllowUserViewErrorRequests] == "true",
+		AllowUserViewUsagePayloads: settings[SettingKeyAllowUserViewUsagePayloads] == "true",
 	}, nil
 }
 
@@ -536,6 +537,16 @@ func (s *SettingService) IsUserErrorViewAllowed(ctx context.Context) bool {
 		return false
 	}
 	return vals[SettingKeyAllowUserViewErrorRequests] == "true"
+}
+
+// IsUserUsagePayloadViewAllowed 用户是否可查看用量请求/响应正文。失败默认 false。
+func (s *SettingService) IsUserUsagePayloadViewAllowed(ctx context.Context) bool {
+	vals, err := s.settingRepo.GetMultiple(ctx, []string{SettingKeyAllowUserViewUsagePayloads})
+	if err != nil {
+		slog.Warn("failed to get allow_user_view_usage_payloads setting, defaulting to false", "error", err)
+		return false
+	}
+	return vals[SettingKeyAllowUserViewUsagePayloads] == "true"
 }
 
 // PublicSettingsInjectionPayload is the JSON shape embedded into HTML as
@@ -713,6 +724,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		AffiliateEnabled:                     settings.AffiliateEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
+		AllowUserViewUsagePayloads:           settings.AllowUserViewUsagePayloads,
 	}, nil
 }
 

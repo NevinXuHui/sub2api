@@ -46,3 +46,12 @@ func withTransientProxyRetry(err *UpstreamFailoverError) *UpstreamFailoverError 
 	err.SameAccountRetryMax = transientProxySameAccountRetries
 	return err
 }
+
+func newGrokUpstreamFailoverError(account *Account, statusCode int, body []byte, headers http.Header) *UpstreamFailoverError {
+	_ = account
+	return withTransientProxyRetry(&UpstreamFailoverError{
+		StatusCode:      statusCode,
+		ResponseBody:    body,
+		ResponseHeaders: headers,
+	})
+}
