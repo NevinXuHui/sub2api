@@ -806,6 +806,18 @@ export default {
         ttft: '首 Token 延迟（Time To First Token），衡量流式响应的首 Token 返回速度。',
         health: '系统健康评分（0-100），综合考虑 SLA、错误率和资源使用情况。'
       },
+    modelMetrics: {
+      title: '各模型性能指标',
+      noData: '暂无数据',
+      model: '模型',
+      requests: '请求数',
+      errorRate: '错误率',
+      tokens: 'Token总量',
+      avgDuration: '平均耗时',
+      ttftP99: 'TTFT P99',
+      qps: 'QPS'
+    },
+
       charts: {
         emptyRequest: '该时间窗口内暂无请求。',
         emptyError: '该时间窗口内暂无错误。',

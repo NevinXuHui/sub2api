@@ -805,6 +805,18 @@ export default {
         ttft: 'Time To First Token, measuring the speed of first token return in streaming responses.',
         health: 'System health score (0-100), considering SLA, error rate, and resource usage.'
       },
+    modelMetrics: {
+      title: 'Per-Model Performance Metrics',
+      noData: 'No data available',
+      model: 'Model',
+      requests: 'Requests',
+      errorRate: 'Error Rate',
+      tokens: 'Total Tokens',
+      avgDuration: 'Avg Duration',
+      ttftP99: 'TTFT P99',
+      qps: 'QPS'
+    },
+
       charts: {
         emptyRequest: 'No requests in this window.',
         emptyError: 'No errors in this window.',
