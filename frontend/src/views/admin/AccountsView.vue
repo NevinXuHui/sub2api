@@ -679,6 +679,58 @@ const loadInitialAccountSortState = (): AccountSortState => {
 }
 const sortState = reactive<AccountSortState>(loadInitialAccountSortState())
 
+// Filter persistence settings
+const ACCOUNT_FILTERS_STORAGE_KEY = 'account-table-filters'
+type AccountFiltersState = {
+  platform: string
+  type: string
+  status: string
+  privacy_mode: string
+  group: string
+  search: string
+}
+const loadInitialAccountFilters = (): AccountFiltersState => {
+  const fallback: AccountFiltersState = {
+    platform: '',
+    type: '',
+    status: '',
+    privacy_mode: '',
+    group: '',
+    search: ''
+  }
+  try {
+    const raw = localStorage.getItem(ACCOUNT_FILTERS_STORAGE_KEY)
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw) as Partial<AccountFiltersState>
+    return {
+      platform: typeof parsed.platform === 'string' ? parsed.platform : '',
+      type: typeof parsed.type === 'string' ? parsed.type : '',
+      status: typeof parsed.status === 'string' ? parsed.status : '',
+      privacy_mode: typeof parsed.privacy_mode === 'string' ? parsed.privacy_mode : '',
+      group: typeof parsed.group === 'string' ? parsed.group : '',
+      search: typeof parsed.search === 'string' ? parsed.search : ''
+    }
+  } catch {
+    return fallback
+  }
+}
+
+const saveAccountFiltersToStorage = () => {
+  try {
+    const filters: AccountFiltersState = {
+      platform: params.platform || '',
+      type: params.type || '',
+      status: params.status || '',
+      privacy_mode: params.privacy_mode || '',
+      group: params.group || '',
+      search: params.search || ''
+    }
+    localStorage.setItem(ACCOUNT_FILTERS_STORAGE_KEY, JSON.stringify(filters))
+  } catch (e) {
+    console.error('Failed to save account filters:', e)
+  }
+}
+
 // Auto refresh settings
 const showAutoRefreshDropdown = ref(false)
 const autoRefreshDropdownRef = ref<HTMLElement | null>(null)
@@ -1060,6 +1112,8 @@ const syncAccountListDerivedParams = () => {
   requestParams.include_scheduler_score = shouldIncludeSchedulerScore() ? '1' : '0'
 }
 
+const savedFilters = loadInitialAccountFilters()
+
 const {
   items: accounts,
   loading,
@@ -1073,12 +1127,12 @@ const {
 } = useTableLoader<Account, any>({
   fetchFn: adminAPI.accounts.list,
   initialParams: {
-    platform: '',
-    type: '',
-    status: '',
-    privacy_mode: '',
-    group: '',
-    search: '',
+    platform: savedFilters.platform,
+    type: savedFilters.type,
+    status: savedFilters.status,
+    privacy_mode: savedFilters.privacy_mode,
+    group: savedFilters.group,
+    search: savedFilters.search,
     include_scheduler_score: shouldIncludeSchedulerScore() ? '1' : '0',
     sort_by: sortState.sort_by,
     sort_order: sortState.sort_order
@@ -1294,6 +1348,7 @@ const debouncedReload = () => {
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
+  saveAccountFiltersToStorage()
   baseDebouncedReload()
 }
 
@@ -1302,6 +1357,7 @@ const handlePageChange = (page: number) => {
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
+  saveAccountFiltersToStorage()
   baseHandlePageChange(page)
 }
 
@@ -1310,6 +1366,7 @@ const handlePageSizeChange = (size: number) => {
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
+  saveAccountFiltersToStorage()
   baseHandlePageSizeChange(size)
 }
 
@@ -1324,6 +1381,7 @@ const handleSort = (key: string, order: AccountSortOrder) => {
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
+  saveAccountFiltersToStorage()
   load()
 }
 
