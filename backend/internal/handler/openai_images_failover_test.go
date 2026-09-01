@@ -120,7 +120,7 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 	gatewayService := service.NewOpenAIGatewayService(
 		accountRepo,
 		nil,
-		nil,
+		nil, nil /* usagePayloadRepo */,
 		nil,
 		nil,
 		nil,

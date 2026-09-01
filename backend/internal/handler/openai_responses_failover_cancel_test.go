@@ -80,7 +80,7 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream service.HTTPUp
 	gatewayService := service.NewOpenAIGatewayService(
 		accountRepo,
 		nil,
-		nil,
+		nil, nil /* usagePayloadRepo */,
 		nil,
 		nil,
 		nil,

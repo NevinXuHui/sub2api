@@ -2166,7 +2166,7 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
 		nil,
-		nil,
+		nil, nil /* usagePayloadRepo */,
 		nil,
 		nil,
 		nil,
@@ -2267,7 +2267,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 			gatewaySvc := service.NewOpenAIGatewayService(
 				accountRepo,
 				nil,
-				nil,
+				nil, nil /* usagePayloadRepo */,
 				nil,
 				nil,
 				nil,
@@ -2349,7 +2349,7 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
 		nil,
-		nil,
+		nil, nil /* usagePayloadRepo */,
 		nil,
 		nil,
 		nil,
@@ -2509,7 +2509,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
 		nil,
-		nil,
+		nil, nil /* usagePayloadRepo */,
 		nil,
 		nil,
 		nil,
@@ -2715,7 +2715,7 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 	rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil, nil)
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 	gatewaySvc := service.NewOpenAIGatewayService(
-		accountRepo, nil, nil, nil, nil, nil, nil, cfg, nil, nil,
+		accountRepo, nil, nil, nil /* usagePayloadRepo */, nil, nil, nil, nil, cfg, nil, nil,
 		service.NewBillingService(cfg, nil), rateLimitSvc, billingCacheSvc,
 		nil, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil,
 	)
@@ -2921,7 +2921,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
 		usageRepo,
-		nil,
+		nil, nil /* usagePayloadRepo */,
 		nil,
 		nil,
 		nil,

@@ -188,6 +188,9 @@ func TestDashboardAggregationRepositoryCleanupUsageLogsNonPartitionedInvalidates
 	repo.clock = func() time.Time { return fixedNow }
 	todayStart := service.GroupUsageTodayStart(fixedNow)
 
+	mock.ExpectExec(`DELETE FROM usage_log_payloads WHERE created_at < \$1`).
+		WithArgs(cutoff.UTC()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery(`SELECT EXISTS`).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
 	mock.ExpectBegin()
@@ -223,6 +226,9 @@ func TestDashboardAggregationRepositoryCleanupUsageLogsPartitionedSortsAndInvali
 	repo.clock = func() time.Time { return fixedNow }
 	todayStart := service.GroupUsageTodayStart(fixedNow)
 
+	mock.ExpectExec(`DELETE FROM usage_log_payloads WHERE created_at < \$1`).
+		WithArgs(cutoff.UTC()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery(`SELECT EXISTS`).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 	mock.ExpectQuery(`SELECT c.relname`).
@@ -266,6 +272,9 @@ func TestDashboardAggregationRepositoryCleanupUsageLogsNonPartitionedFailureRoll
 	cutoff := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
 	deletedAt := time.Date(2026, 5, 3, 2, 0, 0, 0, time.UTC)
 
+	mock.ExpectExec(`DELETE FROM usage_log_payloads WHERE created_at < \$1`).
+		WithArgs(cutoff.UTC()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery(`SELECT EXISTS`).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
 	mock.ExpectBegin()
@@ -292,6 +301,9 @@ func TestDashboardAggregationRepositoryCleanupUsageLogsPartitionFailureRollsBack
 	aprilStart := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
 	dropErr := errors.New("drop partition failed")
 
+	mock.ExpectExec(`DELETE FROM usage_log_payloads WHERE created_at < \$1`).
+		WithArgs(cutoff.UTC()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery(`SELECT EXISTS`).
 		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 	mock.ExpectQuery(`SELECT c.relname`).

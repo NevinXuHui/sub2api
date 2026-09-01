@@ -601,7 +601,7 @@ func TestNewOpenAIGatewayService_InitializesOpenAIWSResolver(t *testing.T) {
 	svc := NewOpenAIGatewayService(
 		nil,
 		nil,
-		nil,
+		nil, nil /* usagePayloadRepo */,
 		nil,
 		nil,
 		nil,

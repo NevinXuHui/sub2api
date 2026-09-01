@@ -225,7 +225,7 @@ func newOpenAIRecordUsageServiceForTest(usageRepo UsageLogRepository, userRepo U
 	svc := NewOpenAIGatewayService(
 		nil,
 		usageRepo,
-		nil,
+		nil, nil /* usagePayloadRepo */,
 		userRepo,
 		subRepo,
 		rateRepo,

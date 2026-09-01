@@ -117,7 +117,7 @@ func TestNewGatewayServiceWiresCompositeModelOwnershipResolver(t *testing.T) {
 		repo,
 		nil,
 		nil,
-		nil,
+		nil, nil /* usagePayloadRepo */,
 		nil,
 		nil,
 		nil,
