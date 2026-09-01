@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from '../client'
-import type { AdminUsageLog, UsageQueryParams, PaginatedResponse, UsageRequestType } from '@/types'
+import type { AdminUsageLog, UsageQueryParams, PaginatedResponse, UsageRequestType, UsagePayload } from '@/types'
 import type { EndpointStat } from '@/types'
 
 // ==================== Types ====================
@@ -207,6 +207,11 @@ export async function cancelCleanupTask(taskId: number): Promise<{ id: number; s
   return data
 }
 
+export async function getAdminUsagePayload(id: number): Promise<UsagePayload> {
+  const { data } = await apiClient.get<UsagePayload>(`/admin/usage/${id}/payload`)
+  return data
+}
+
 export const adminUsageAPI = {
   list,
   getStats,
@@ -214,7 +219,8 @@ export const adminUsageAPI = {
   searchApiKeys,
   listCleanupTasks,
   createCleanupTask,
-  cancelCleanupTask
+  cancelCleanupTask,
+  getAdminUsagePayload
 }
 
 export default adminUsageAPI

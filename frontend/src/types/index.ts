@@ -280,6 +280,7 @@ export interface PublicSettings {
   service_quota_enabled: boolean
   affiliate_enabled: boolean
   allow_user_view_error_requests?: boolean
+  allow_user_view_usage_payloads?: boolean
 }
 
 export interface AuthResponse {
@@ -1737,6 +1738,16 @@ export interface AdminUsageLog extends UsageLog {
 
   // 最小账号信息（仅管理员接口返回）
   account?: UsageLogAccountSummary
+}
+
+export interface UsagePayload {
+  request_body: string
+  response_body: string
+  request_truncated: boolean
+  response_truncated: boolean
+  request_bytes: number
+  response_bytes: number
+  captured: boolean
 }
 
 export interface UsageCleanupFilters {

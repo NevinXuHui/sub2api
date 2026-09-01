@@ -1227,6 +1227,18 @@ export default {
         label: 'Allow users to view their own error requests',
         description: 'When enabled, users can see a redacted view of their failed requests on the usage page (no internal/upstream details). Requires ops monitoring enabled to have data.',
       },
+      usage_payload_capture: {
+        label: 'Capture request/response bodies',
+        description: 'When enabled, new usage records store the client-visible request and response (truncated by the byte limit). Off by default; the hot path copies nothing and writes no sidecar.',
+      },
+      usage_payload_max_bytes: {
+        label: 'Capture limit (bytes)',
+        description: 'Request and response are truncated independently. Range 4096–1048576, default 65536.',
+      },
+      user_payload_view: {
+        label: 'Allow users to view request/response bodies',
+        description: 'When enabled, users can open captured bodies from the usage table. Has no effect while capture is off. Admins can always view captured data.',
+      },
       saveSettings: 'Save Settings',
       saving: 'Saving...',
       settingsSaved: 'Settings saved successfully',

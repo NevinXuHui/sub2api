@@ -184,6 +184,8 @@
           :server-side-sort="true"
           :show-account-billing="false"
           :show-upstream-endpoint="false"
+          :show-payload-action="payloadViewEnabled"
+          payload-scope="user"
           default-sort-key="created_at"
           default-sort-order="desc"
           @sort="handleSort"
@@ -356,6 +358,7 @@ const endpointDistributionMetric = ref<DistributionMetric>('tokens')
 const endpointDistributionSource = ref<EndpointSource>('inbound')
 const activeTab = ref<'usage' | 'errors'>('usage')
 const errorViewEnabled = computed(() => appStore.cachedPublicSettings?.allow_user_view_error_requests ?? false)
+const payloadViewEnabled = computed(() => appStore.cachedPublicSettings?.allow_user_view_usage_payloads ?? false)
 
 const filters = ref<UsageQueryParams>({
   start_date: startDate.value,
@@ -705,7 +708,7 @@ const exportToCSV = async () => {
   }
 }
 
-const ALWAYS_VISIBLE = ['created_at']
+const ALWAYS_VISIBLE = ['created_at', 'actions']
 const DEFAULT_HIDDEN_COLUMNS = ['user_agent']
 const HIDDEN_COLUMNS_KEY = 'user-usage-hidden-columns'
 
@@ -723,6 +726,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'latency', label: t('usage.latency'), sortable: false },
   { key: 'created_at', label: t('usage.time'), sortable: true },
   { key: 'user_agent', label: t('usage.userAgent'), sortable: false },
+  ...(payloadViewEnabled.value ? [{ key: 'actions', label: t('usage.payload.view'), sortable: false }] : []),
 ])
 
 const hiddenColumns = reactive<Set<string>>(new Set())

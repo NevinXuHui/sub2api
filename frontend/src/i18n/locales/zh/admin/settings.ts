@@ -1221,6 +1221,18 @@ export default {
         label: '允许用户查看自己的错误请求',
         description: '开启后，用户可在用量页查看自己失败请求的精简信息（不含内部/上游错误细节）。需运维监控开启才有数据。',
       },
+      usage_payload_capture: {
+        label: '采集请求/响应正文',
+        description: '开启后，新产生的使用记录会保存客户端可见的请求体和响应体（受字节上限截断）。默认关闭；关闭时热路径不拷贝、不写 sidecar。',
+      },
+      usage_payload_max_bytes: {
+        label: '正文采集上限（字节）',
+        description: '请求与响应各自独立截断。范围 4096–1048576，默认 65536。',
+      },
+      user_payload_view: {
+        label: '允许用户查看请求/响应正文',
+        description: '开启后，用户可在用量明细中查看已采集的请求与响应。采集关闭时此开关无效。管理员始终可查看已采集数据。',
+      },
       saveSettings: '保存设置',
       saving: '保存中...',
       settingsSaved: '设置保存成功',

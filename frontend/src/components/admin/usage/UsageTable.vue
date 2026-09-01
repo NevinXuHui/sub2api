@@ -286,10 +286,22 @@
           <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
         </template>
 
+        <template v-if="showPayloadAction" #cell-actions="{ row }">
+          <button
+            type="button"
+            class="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-600 dark:hover:text-primary-400"
+            :title="t('usage.payload.view')"
+            @click.stop="openPayload(row.id)"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          </button>
+        </template>
         <template #empty><EmptyState :message="t('usage.noRecords')" /></template>
       </DataTable>
     </div>
   </div>
+
+  <UsagePayloadModal v-model:show="payloadModalShow" :usage-id="payloadUsageId" :scope="payloadScope" />
 
   <!-- Token Tooltip Portal -->
   <Teleport to="body">
@@ -563,6 +575,7 @@ function accountBilled(row: { total_cost?: number | null; account_stats_cost?: n
 import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import IpGeoCell from '@/components/common/IpGeoCell.vue'
+import UsagePayloadModal from '@/components/admin/usage/UsagePayloadModal.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { fetchBatch, getEntry } from '@/utils/ipGeoLookup'
 import type { AdminUsageLog } from '@/types'
@@ -579,6 +592,8 @@ interface Props {
   showUpstreamEndpoint?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
+  showPayloadAction?: boolean
+  payloadScope?: 'admin' | 'user'
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -588,7 +603,9 @@ const props = withDefaults(defineProps<Props>(), {
   defaultSortOrder: 'asc',
   showAccountBilling: true,
   showUpstreamEndpoint: true,
-  flat: false
+  flat: false,
+  showPayloadAction: false,
+  payloadScope: 'admin'
 })
 const emit = defineEmits<{
   userClick: [userID: number, email?: string]
@@ -597,6 +614,12 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 const appStore = useAppStore()
+const payloadModalShow = ref(false)
+const payloadUsageId = ref<number | null>(null)
+function openPayload(id: number) {
+  payloadUsageId.value = id
+  payloadModalShow.value = true
+}
 const copiedRequestId = ref<string | null>(null)
 const showAccountBilling = props.showAccountBilling
 const showUpstreamEndpoint = props.showUpstreamEndpoint

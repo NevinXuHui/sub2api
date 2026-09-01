@@ -15,7 +15,8 @@ import type {
   UsageRequestType,
   UserErrorRequest,
   UserErrorRequestDetail,
-  UserErrorListParams
+  UserErrorListParams,
+  UsagePayload
 } from '@/types'
 
 // ==================== Dashboard Types ====================
@@ -370,6 +371,11 @@ export async function getMyErrorDetail(id: number): Promise<UserErrorRequestDeta
   return data
 }
 
+export async function getMyUsagePayload(id: number): Promise<UsagePayload> {
+  const { data } = await apiClient.get<UsagePayload>(`/usage/${id}/payload`)
+  return data
+}
+
 export const usageAPI = {
   list,
   query,
@@ -386,7 +392,8 @@ export const usageAPI = {
   getDashboardApiKeysUsage,
   // Error requests
   listMyErrorRequests,
-  getMyErrorDetail
+  getMyErrorDetail,
+  getMyUsagePayload
 }
 
 export default usageAPI

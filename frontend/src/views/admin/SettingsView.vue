@@ -6241,6 +6241,54 @@
                 <span class="toggle-slider"></span>
               </label>
             </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.usage_payload_capture.label') }}
+                </label>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.usage_payload_capture.description') }}
+                </p>
+              </div>
+              <label class="toggle">
+                <input v-model="form.usage_payload_capture_enabled" type="checkbox" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div>
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {{ t('admin.settings.usage_payload_max_bytes.label') }}
+              </label>
+              <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.settings.usage_payload_max_bytes.description') }}
+              </p>
+              <input
+                v-model.number="form.usage_payload_max_bytes"
+                type="number"
+                min="4096"
+                max="1048576"
+                step="1024"
+                class="input w-40"
+              />
+            </div>
+            <div class="flex items-center justify-between" :class="{ 'opacity-50': !form.usage_payload_capture_enabled }">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.user_payload_view.label') }}
+                </label>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.user_payload_view.description') }}
+                </p>
+              </div>
+              <label class="toggle">
+                <input
+                  v-model="form.allow_user_view_usage_payloads"
+                  type="checkbox"
+                  :disabled="!form.usage_payload_capture_enabled"
+                />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
           </div>
         </div>
         </div>
@@ -9809,6 +9857,9 @@ const form = reactive<SettingsForm>({
   affiliate_enabled: false,
   // Allow user view error requests
   allow_user_view_error_requests: false,
+  usage_payload_capture_enabled: false,
+  usage_payload_max_bytes: 65536,
+  allow_user_view_usage_payloads: false,
 });
 
 // 人机验证 UI 状态：单卡片「总开关 + 服务商单选」，落库仍是三个独立
@@ -11467,6 +11518,9 @@ async function saveSettings() {
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
       allow_user_view_error_requests: form.allow_user_view_error_requests,
+      usage_payload_capture_enabled: form.usage_payload_capture_enabled,
+      usage_payload_max_bytes: Number(form.usage_payload_max_bytes) || 65536,
+      allow_user_view_usage_payloads: form.allow_user_view_usage_payloads,
     };
 
     // 仅当 openai_fast_policy_settings 已成功从后端加载时才回写，
