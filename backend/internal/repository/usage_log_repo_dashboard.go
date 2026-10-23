@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
@@ -625,4 +626,129 @@ func (r *usageLogRepository) GetAPIKeyDashboardStats(ctx context.Context, apiKey
 	stats.Tpm = tpm
 
 	return stats, nil
+}
+
+// GetDashboardPerformance reads rolling throughput and TTFT from the latest 100 requests.
+// TPM follows the dashboard convention: input + output, excluding cache tokens.
+func (r *usageLogRepository) GetDashboardPerformance(ctx context.Context) (*usagestats.DashboardPerformance, error) {
+	now := time.Now().UTC()
+	modelExpr := resolveModelDimensionExpression(usagestats.ModelSourceRequested)
+	query := fmt.Sprintf(`SELECT %s AS model, COUNT(*),
+ COALESCE(SUM(input_tokens + output_tokens), 0)
+ FROM usage_logs WHERE created_at >= $1 AND created_at < $2
+ GROUP BY %s ORDER BY COUNT(*) DESC, model ASC`, modelExpr, modelExpr)
+	rows, err := r.sql.QueryContext(ctx, query, now.Add(-time.Minute), now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := &usagestats.DashboardPerformance{WindowSeconds: 60, UpdatedAt: now, Models: make([]usagestats.ModelPerformance, 0)}
+	for rows.Next() {
+		var item usagestats.ModelPerformance
+		if err := rows.Scan(&item.Model, &item.RPM, &item.TPM); err != nil {
+			return nil, err
+		}
+		result.Models = append(result.Models, item)
+		result.RPM += item.RPM
+		result.TPM += item.TPM
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Limit before filtering missing timings: these are the latest 100 requests,
+	// not the latest 100 requests with a timing. The primary key bounds this scan.
+	rows.Close()
+	latencyQuery := fmt.Sprintf(`SELECT model, AVG(first_token_ms), COUNT(*)
+ FROM (SELECT %s AS model, first_token_ms FROM usage_logs ORDER BY id DESC LIMIT 100) recent
+ WHERE first_token_ms IS NOT NULL AND first_token_ms >= 0 GROUP BY model ORDER BY model`, modelExpr)
+	latencyRows, err := r.sql.QueryContext(ctx, latencyQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer latencyRows.Close()
+	var weightedTotal float64
+	for latencyRows.Next() {
+		var item usagestats.ModelPerformance
+		var average float64
+		if err := latencyRows.Scan(&item.Model, &average, &item.FirstTokenSamples); err != nil {
+			return nil, err
+		}
+		item.AvgFirstTokenMS = &average
+		weightedTotal += average * float64(item.FirstTokenSamples)
+		result.FirstTokenSamples += item.FirstTokenSamples
+		found := false
+		for i := range result.Models {
+			if result.Models[i].Model == item.Model {
+				result.Models[i].AvgFirstTokenMS = item.AvgFirstTokenMS
+				result.Models[i].FirstTokenSamples = item.FirstTokenSamples
+				found = true
+				break
+			}
+		}
+		if !found {
+			result.Models = append(result.Models, item)
+		}
+	}
+	if err := latencyRows.Err(); err != nil {
+		return nil, err
+	}
+	if result.FirstTokenSamples > 0 {
+		average := weightedTotal / float64(result.FirstTokenSamples)
+		result.AvgFirstTokenMS = &average
+	}
+	latencyRows.Close()
+	// Count both rolling windows in one scan, using the error-request list's
+	// final status semantics. Successful failovers and count_tokens are excluded.
+	errorRows, err := r.sql.QueryContext(ctx, `SELECT COUNT(*) FILTER (WHERE created_at >= $3), COUNT(*) FROM ops_error_logs
+ WHERE created_at >= $1 AND created_at < $2
+ AND is_count_tokens = FALSE AND status_code >= 400`, now.Add(-time.Hour), now, now.Add(-time.Minute))
+	if err != nil {
+		return nil, err
+	}
+	defer errorRows.Close()
+	if errorRows.Next() {
+		if err := errorRows.Scan(&result.ErrorCount, &result.HourErrorCount); err != nil {
+			return nil, err
+		}
+	}
+	if err := errorRows.Err(); err != nil {
+		return nil, err
+	}
+	errorRows.Close()
+	// Count final failed requests only; recovered responses and count_tokens do
+	// not contribute. Both sides of the rate use the same system-day snapshot.
+	todayRows, err := r.sql.QueryContext(ctx, `SELECT model, SUM(errors), SUM(requests) FROM (
+ SELECT COALESCE(NULLIF(TRIM(requested_model), ''), NULLIF(TRIM(model), ''), 'unknown') AS model,
+ COUNT(*) AS errors, 0::bigint AS requests FROM ops_error_logs
+ WHERE created_at >= $1 AND created_at < $2 AND is_count_tokens = FALSE AND status_code >= 400 GROUP BY 1
+ UNION ALL
+ SELECT COALESCE(NULLIF(TRIM(requested_model), ''), NULLIF(TRIM(model), ''), 'unknown') AS model,
+ 0::bigint AS errors, COUNT(*) AS requests FROM usage_logs
+ WHERE created_at >= $1 AND created_at < $2 GROUP BY 1
+ ) daily GROUP BY model ORDER BY SUM(requests) DESC, model`, timezone.StartOfDay(now), now)
+	if err != nil {
+		return nil, err
+	}
+	defer todayRows.Close()
+	result.TodayModels = make([]usagestats.ModelRequestErrors, 0)
+	var successfulRequests int64
+	for todayRows.Next() {
+		var item usagestats.ModelRequestErrors
+		if err := todayRows.Scan(&item.Model, &item.ErrorCount, &item.Requests); err != nil {
+			return nil, err
+		}
+		if total := item.Requests + item.ErrorCount; total > 0 {
+			item.ErrorRate = float64(item.ErrorCount) / float64(total) * 100
+		}
+		result.TodayModels = append(result.TodayModels, item)
+		result.TodayErrorCount += item.ErrorCount
+		successfulRequests += item.Requests
+	}
+	if err := todayRows.Err(); err != nil {
+		return nil, err
+	}
+	if total := successfulRequests + result.TodayErrorCount; total > 0 {
+		result.TodayErrorRate = float64(result.TodayErrorCount) / float64(total) * 100
+	}
+	return result, nil
 }

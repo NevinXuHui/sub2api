@@ -71,6 +71,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -137,4 +139,6 @@ async function loadDashboard() {
 
 watch(days, () => loadDashboard())
 onMounted(() => loadDashboard())
+
+usePersistedFilters('admin/orders/AdminPaymentDashboardView', { days })
 </script>

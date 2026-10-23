@@ -176,6 +176,32 @@ describe('admin AccountsView lite account list', () => {
     vi.restoreAllMocks()
   })
 
+  it.each(['7', 'ungrouped', '7,9', '7,ungrouped'])('keeps group %s after a page remount and clears it when reset', async (group) => {
+    localStorage.setItem('auth_user', JSON.stringify({ id: 1 }))
+    const first = mountView()
+    await flushPromises()
+    first.findComponent({ name: 'AccountTableFilters' }).vm.$emit('update:filters', { group })
+    await flushPromises()
+    first.unmount()
+    listAccounts.mockClear()
+
+    const second = mountView()
+    await flushPromises()
+    expect(second.findComponent({ name: 'AccountTableFilters' }).props('filters').group).toBe(group)
+    expect(listAccounts).toHaveBeenCalledWith(1, 20,
+      expect.objectContaining({ group }), expect.anything())
+    second.findComponent({ name: 'AccountTableFilters' }).vm.$emit('update:filters', { group: '' })
+    await flushPromises()
+    second.unmount()
+    listAccounts.mockClear()
+
+    const third = mountView()
+    await flushPromises()
+    expect(listAccounts).toHaveBeenCalledWith(1, 20,
+      expect.objectContaining({ group: '' }), expect.anything())
+    third.unmount()
+  })
+
   it('keeps lite=1 on the initial list request', async () => {
     const wrapper = mountView()
     await flushPromises()

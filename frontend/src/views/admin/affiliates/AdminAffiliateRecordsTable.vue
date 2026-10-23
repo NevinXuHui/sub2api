@@ -169,6 +169,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { computed, defineComponent, h, onMounted, reactive, ref, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -445,4 +447,6 @@ const OverviewStat = defineComponent({
 onMounted(() => {
   void loadRecords()
 })
+
+usePersistedFilters(`admin/affiliates/${props.type}`,  { filters })
 </script>

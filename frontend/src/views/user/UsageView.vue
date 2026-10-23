@@ -219,6 +219,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -899,6 +901,8 @@ const switchToErrors = () => {
 }
 
 onMounted(() => {
+  if (activeTab.value !== 'usage' && activeTab.value !== 'errors') activeTab.value = 'usage'
+  if (!errorViewEnabled.value) activeTab.value = 'usage'
   loadSavedColumns()
   loadSavedErrColumns()
   document.addEventListener('click', handleColumnClickOutside)
@@ -914,4 +918,6 @@ onUnmounted(() => {
 watch(endpointDistributionSource, () => {
   // Endpoint source switching is handled by the chart component using already loaded stats.
 })
+
+usePersistedFilters('user/UsageView', { activeTab, startDate, endDate, granularity, filters, errorFilter, sortState, modelDistributionMetric, groupDistributionMetric, endpointDistributionMetric, endpointDistributionSource })
 </script>

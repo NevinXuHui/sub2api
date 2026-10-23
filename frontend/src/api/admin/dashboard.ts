@@ -44,6 +44,26 @@ export async function getRealtimeMetrics(): Promise<{
   return data
 }
 
+export interface DashboardPerformance {
+  hour_error_count?: number
+  today_models?: Array<{ model: string; requests: number; error_count: number; error_rate: number }>
+  today_error_count?: number
+  today_error_rate?: number
+  error_count: number
+  avg_first_token_ms: number | null
+  first_token_samples: number
+  rpm: number
+  tpm: number
+  window_seconds: number
+  updated_at: string
+  models: Array<{ model: string; rpm: number; tpm: number; avg_first_token_ms: number | null; first_token_samples: number }>
+}
+
+export async function getPerformance(signal?: AbortSignal): Promise<DashboardPerformance> {
+  const { data } = await apiClient.get<DashboardPerformance>('/admin/dashboard/performance', { signal })
+  return data
+}
+
 export interface TrendParams {
   start_date?: string
   end_date?: string
@@ -104,8 +124,8 @@ export interface ModelStatsResponse {
  * @param params - Query parameters for filtering
  * @returns Model usage statistics
  */
-export async function getModelStats(params?: ModelStatsParams): Promise<ModelStatsResponse> {
-  const { data } = await apiClient.get<ModelStatsResponse>('/admin/dashboard/models', { params })
+export async function getModelStats(params?: ModelStatsParams, signal?: AbortSignal): Promise<ModelStatsResponse> {
+  const { data } = await apiClient.get<ModelStatsResponse>('/admin/dashboard/models', { params, signal })
   return data
 }
 
@@ -335,6 +355,7 @@ export async function getBatchApiKeysUsage(
 export const dashboardAPI = {
   getStats,
   getRealtimeMetrics,
+  getPerformance,
   getUsageTrend,
   getModelStats,
   getGroupStats,

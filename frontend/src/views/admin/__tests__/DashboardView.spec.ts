@@ -1,11 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 import type { DashboardStats } from '@/types'
 import DashboardView from '../DashboardView.vue'
 
-const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking } = vi.hoisted(() => ({
+const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking, getPerformance, getModelStats } = vi.hoisted(() => ({
+  getPerformance: vi.fn(),
+  getModelStats: vi.fn(),
   getSnapshotV2: vi.fn(),
   getUserUsageTrend: vi.fn(),
   getUserSpendingRanking: vi.fn()
@@ -18,6 +20,8 @@ vi.mock('vue-chartjs', () => ({
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     dashboard: {
+      getPerformance,
+      getModelStats,
       getSnapshotV2,
       getUserUsageTrend,
       getUserSpendingRanking
@@ -90,10 +94,17 @@ const createDashboardStats = (): DashboardStats => ({
   tpm: 0
 })
 
+enableAutoUnmount(afterEach)
+
 describe('admin DashboardView', () => {
+  afterEach(() => { vi.useRealTimers() })
   beforeEach(() => {
+    localStorage.clear()
     setActivePinia(createPinia())
 
+    getModelStats.mockReset().mockResolvedValue({ models: [] })
+    getPerformance.mockReset()
+    getPerformance.mockResolvedValue({ error_count: 12, hour_error_count: 60, avg_first_token_ms: 1200, first_token_samples: 100, rpm: 9, tpm: 1690, window_seconds: 60, updated_at: new Date().toISOString(), models: [{ model: 'haiku', rpm: 7, tpm: 1234, avg_first_token_ms: 1500, first_token_samples: 60 }, { model: 'sonnet', rpm: 2, tpm: 456 }] })
     getSnapshotV2.mockReset()
     getUserUsageTrend.mockReset()
     getUserSpendingRanking.mockReset()
@@ -117,6 +128,123 @@ describe('admin DashboardView', () => {
       start_date: '',
       end_date: ''
     })
+  })
+
+  it('shows today error count and percentage and refreshes them', async () => {
+    vi.useFakeTimers()
+    getPerformance.mockResolvedValue({ models: [], error_count: 0, today_error_count: 25, today_error_rate: 12.5, today_models: [{ model: "error-only-model", requests: 0, error_count: 25, error_rate: 100 }] })
+    const wrapper = mount(DashboardView, { global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' }, LoadingSpinner: true,
+      Icon: true, DateRangePicker: true, Select: true, ModelDistributionChart: true, TokenUsageTrend: true
+    } } })
+    try {
+      await flushPromises()
+      expect(wrapper.get('[data-testid="today-errors"]').text()).toContain('25')
+      expect(wrapper.get('[data-testid="today-errors"]').text()).toContain('12.50%')
+      expect(wrapper.get('[data-testid="today-requests-models"]').text()).toContain('error-only-model')
+      expect(wrapper.get('[data-testid="today-requests-models"]').text()).toContain('100.00%')
+      getPerformance.mockResolvedValue({ models: [], error_count: 0, today_error_count: 0, today_error_rate: 0 })
+      await vi.advanceTimersByTimeAsync(10_000)
+      await flushPromises()
+      expect(wrapper.get('[data-testid="today-errors"]').text()).toContain('0.00%')
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+    }
+  })
+
+  it('filters the token trend by model and restores the selection after remount', async () => {
+    const options = { global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' }, LoadingSpinner: true,
+      Icon: true, DateRangePicker: true, Select: true, ModelDistributionChart: true, TokenUsageTrend: true
+    } } }
+    const wrapper = mount(DashboardView, options)
+    await flushPromises()
+    wrapper.findComponent({ name: 'TokenUsageTrend' }).vm.$emit('update:model', 'claude-sonnet-4-5')
+    await flushPromises()
+    expect(getSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'claude-sonnet-4-5' }))
+    wrapper.unmount()
+    const restored = mount(DashboardView, options)
+    await flushPromises()
+    expect(restored.findComponent({ name: 'TokenUsageTrend' }).props('model')).toBe('claude-sonnet-4-5')
+    expect(getSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'claude-sonnet-4-5' }))
+    restored.findComponent({ name: 'TokenUsageTrend' }).vm.$emit('update:model', '')
+    await flushPromises()
+    expect(getSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining({ model: undefined }))
+  })
+
+  it('shows independent daily and lifetime model totals and refreshes each minute', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 17, 12))
+    getModelStats.mockImplementation(async ({ start_date }) => ({ models: start_date === '1970-01-01'
+      ? [{ model: 'old-model', requests: 9, total_tokens: 900, actual_cost: 12, account_cost: 6, cost: 24 }]
+      : [{ model: 'haiku', requests: 3, total_tokens: 100, actual_cost: 2, account_cost: 1, cost: 4 }, { model: 'sonnet', requests: 2, total_tokens: 200, actual_cost: 3, account_cost: 2, cost: 6 }] }))
+    const wrapper = mount(DashboardView, { global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' }, LoadingSpinner: true,
+      Icon: true, DateRangePicker: true, Select: true, ModelDistributionChart: true, TokenUsageTrend: true
+    } } })
+    await flushPromises()
+    expect(getModelStats).toHaveBeenCalledWith({ start_date: '2026-10-17', end_date: '2026-10-17', model_source: 'requested' }, expect.any(AbortSignal))
+    expect(getModelStats).toHaveBeenCalledWith({ start_date: '1970-01-01', end_date: '2026-10-17', model_source: 'requested' }, expect.any(AbortSignal))
+    expect(wrapper.get('[data-testid="today-requests-models"]').text()).toContain('haiku')
+    expect(wrapper.get('[data-testid="today-total_tokens-models"]').text()).toContain('sonnet')
+    expect(wrapper.get('[data-testid="total-total_tokens-models"]').text()).toContain('old-model')
+    expect(wrapper.get('[data-testid="today-total_tokens-models"]').text()).not.toContain('old-model')
+    expect((wrapper.vm as any).summaryTotals).toEqual({ todayRequests: 5, todayTokens: 300, totalTokens: 900 })
+    expect((wrapper.vm as any).summaryCosts).toEqual({ today: { actual_cost: 5, account_cost: 3, cost: 10 }, total: { actual_cost: 12, account_cost: 6, cost: 24 } })
+    const costs = wrapper.findAll('[data-testid="today-model-costs"]')
+    expect(costs).toHaveLength(2)
+    expect(costs[0].text()).toContain('$2.00')
+    expect(costs[0].text()).toContain('$1.00')
+    expect(costs[0].text()).toContain('$4.00')
+    expect(wrapper.get('[data-testid="total-model-costs"]').text()).toContain('$12.00')
+    getModelStats.mockRejectedValueOnce(new Error('offline'))
+    await vi.advanceTimersByTimeAsync(60_000)
+    await flushPromises()
+    expect(getModelStats).toHaveBeenCalledTimes(4)
+    expect(wrapper.get('[data-testid="total-total_tokens-models"]').text()).toContain('old-model')
+    expect(wrapper.get('[data-testid="total-total_tokens-models"]').text()).toContain('admin.dashboard.failedToLoad')
+    wrapper.unmount()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(getModelStats).toHaveBeenCalledTimes(4)
+  })
+
+  it('shows model rates, refreshes every ten seconds, and stops on unmount', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(DashboardView, {
+      global: { stubs: {
+        AppLayout: { template: '<div><slot /></div>' }, LoadingSpinner: true,
+        Icon: true, DateRangePicker: true, Select: true, ModelDistributionChart: true,
+        TokenUsageTrend: true
+      } }
+    })
+    await flushPromises()
+    const table = wrapper.get('[data-testid="model-performance"]')
+    expect(table.text()).toContain('haiku')
+    expect(table.text()).toContain('sonnet')
+    expect(table.text()).toContain('1.50 s')
+    expect(wrapper.get('[data-testid="recent-ttft"]').text()).toContain('1.20 s')
+    expect(getPerformance).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-testid="recent-errors"]').text()).toContain('12')
+    expect(wrapper.get('[data-testid="hour-errors"]').text()).toContain('60')
+    getPerformance.mockRejectedValueOnce(new Error('offline'))
+    await vi.advanceTimersByTimeAsync(10_000)
+    await flushPromises()
+    expect(getPerformance).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('admin.dashboard.performanceRefreshFailed')
+    expect(table.text()).toContain('haiku')
+    expect(wrapper.get('[data-testid="recent-errors"]').text()).toContain('12')
+    expect(wrapper.get('[data-testid="hour-errors"]').text()).toContain('60')
+    getPerformance.mockResolvedValueOnce({ error_count: 0, hour_error_count: 0, rpm: 0, tpm: 0, window_seconds: 60, updated_at: new Date().toISOString(), models: [] })
+    await vi.advanceTimersByTimeAsync(10_000)
+    await flushPromises()
+    expect(table.text()).not.toContain('haiku')
+    expect(wrapper.get('[data-testid="recent-errors"]').text()).toContain('0')
+    expect(wrapper.get('[data-testid="hour-errors"]').text()).toContain('0')
+    expect(wrapper.text()).not.toContain('admin.dashboard.performanceRefreshFailed')
+    wrapper.unmount()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(getPerformance).toHaveBeenCalledTimes(3)
   })
 
   it('switches metrics and ignores a stale tokens response', async () => {

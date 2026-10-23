@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
@@ -365,6 +367,8 @@ function formatStatusLabel(status: string | undefined): string {
 }
 
 const empty = computed(() => events.value.length === 0 && !loading.value)
+
+usePersistedFilters('admin/ops/components/OpsAlertEventsCard', { timeRange, severity, status, emailSent })
 </script>
 
 <template>

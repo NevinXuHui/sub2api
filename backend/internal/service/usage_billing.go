@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/shopspring/decimal"
 )
@@ -17,6 +18,8 @@ var ErrUsageBillingRequestConflict = errors.New("usage billing request fingerpri
 
 // UsageBillingCommand describes one billable request that must be applied at most once.
 type UsageBillingCommand struct {
+	DailyDiscount      *AccountDailyDiscountSettings
+	BillingAt          time.Time
 	RequestID          string
 	APIKeyID           int64
 	RequestFingerprint string
@@ -163,6 +166,7 @@ type AccountQuotaState struct {
 }
 
 type UsageBillingApplyResult struct {
+	DailyDiscount        *AccountDailyDiscountReceipt
 	Applied              bool
 	APIKeyQuotaExhausted bool
 	NewBalance           *float64           // post-deduction balance (nil = no balance deduction)

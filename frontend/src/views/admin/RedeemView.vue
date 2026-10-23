@@ -611,6 +611,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -1194,4 +1196,6 @@ onUnmounted(() => {
   clearTimeout(searchTimeout)
   abortController?.abort()
 })
+
+usePersistedFilters('admin/RedeemView', { searchQuery, filters })
 </script>

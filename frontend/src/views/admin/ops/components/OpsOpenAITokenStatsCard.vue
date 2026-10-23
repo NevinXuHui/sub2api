@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { computed, ref, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
@@ -155,6 +157,8 @@ function onNextPage() {
   if (viewMode.value !== 'pagination') return
   if (page.value < totalPages.value) page.value += 1
 }
+
+usePersistedFilters('admin/ops/components/OpsOpenAITokenStatsCard', { timeRange, viewMode, topN, pageSize })
 </script>
 
 <template>

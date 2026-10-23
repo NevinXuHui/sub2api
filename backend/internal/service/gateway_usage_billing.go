@@ -370,9 +370,29 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 	billingCtx, cancel := detachedBillingContext(ctx)
 	defer cancel()
 
+	if !p.SimpleModeKeyRateLimitOnly && deps.settingService != nil {
+		policy, err := deps.settingService.GetAccountDailyDiscountSettings(billingCtx)
+		if err != nil {
+			return false, err
+		}
+		cmd.DailyDiscount = &policy
+		cmd.BillingAt = time.Now()
+		if usageLog != nil && !usageLog.CreatedAt.IsZero() {
+			cmd.BillingAt = usageLog.CreatedAt
+		}
+	}
+
 	result, err := repo.Apply(billingCtx, cmd)
 	if err != nil {
 		return false, err
+	}
+
+	if result != nil && result.DailyDiscount != nil {
+		p.Cost.ActualCost = result.DailyDiscount.ActualCost
+		if usageLog != nil {
+			usageLog.ActualCost = result.DailyDiscount.ActualCost
+			usageLog.RateMultiplier *= result.DailyDiscount.Factor
+		}
 	}
 
 	if result == nil || !result.Applied {
@@ -590,6 +610,7 @@ func detachUpstreamContext(ctx context.Context) (context.Context, context.Cancel
 
 // billingDeps 扣费逻辑依赖的服务（由各 gateway service 提供）
 type billingDeps struct {
+	settingService        *SettingService
 	accountRepo           AccountRepository
 	userRepo              UserRepository
 	userSubRepo           UserSubscriptionRepository
@@ -602,7 +623,7 @@ type billingDeps struct {
 
 func (s *GatewayService) billingDeps() *billingDeps {
 	return &billingDeps{
-		accountRepo:           s.accountRepo,
+		settingService: s.settingService, accountRepo: s.accountRepo,
 		userRepo:              s.userRepo,
 		userSubRepo:           s.userSubRepo,
 		billingCacheService:   s.billingCacheService,

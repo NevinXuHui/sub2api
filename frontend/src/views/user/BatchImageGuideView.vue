@@ -752,6 +752,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -2647,6 +2649,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', closePromptPopover)
   window.removeEventListener('scroll', closePromptPopover, true)
 })
+
+usePersistedFilters('user/BatchImageGuideView', { filters })
 </script>
 
 <style scoped>

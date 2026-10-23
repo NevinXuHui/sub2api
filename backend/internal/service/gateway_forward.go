@@ -14,7 +14,6 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/tidwall/gjson"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,6 +33,9 @@ const (
 )
 
 func (s *GatewayService) shouldRetryUpstreamError(account *Account, statusCode int) bool {
+	if GetNodeFailureRecovery(account) != nil {
+		return false
+	}
 	// OAuth/Setup Token 账号：仅 403 重试
 	if account.IsOAuth() {
 		return statusCode == 403
@@ -90,6 +92,19 @@ func sleepWithContext(ctx context.Context, d time.Duration) error {
 // Forward 转发请求到Claude API
 func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, parsed *ParsedRequest) (result *ForwardResult, err error) {
 	startTime := time.Now()
+	if err := s.admitNodeFailureProbe(ctx, account); err != nil {
+		return nil, err
+	}
+	observeNodeFailure := s.beginNodeFailureObservation(c, account)
+	defer func() {
+		if GetNodeFailureRecovery(account) != nil {
+			var failover *UpstreamFailoverError
+			if errors.As(err, &failover) {
+				failover.RetryableOnSameAccount = false
+			}
+		}
+		observeNodeFailure(ctx, result, err)
+	}()
 	if parsed == nil {
 		return nil, fmt.Errorf("parse request: empty request")
 	}
@@ -410,7 +425,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		}
 
 		// 优先检测thinking block签名错误（400）并重试一次
-		if resp.StatusCode == 400 {
+		if resp.StatusCode == 400 && GetNodeFailureRecovery(account) == nil {
 			respBody, readErr := s.readUpstreamErrorBody(resp)
 			if readErr == nil {
 				_ = resp.Body.Close()
@@ -820,14 +835,18 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	if reqStream {
 		writerSizeBeforeStream := c.Writer.Size()
 		streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, reqModel, shouldMimicClaudeCode)
+		if streamResult != nil && streamResult.clientDisconnect {
+			c.Set(nodeFailureClientDisconnectedKey, true)
+		}
 		if err != nil {
 			var sseErr *sseStreamErrorEventError
 			if errors.As(err, &sseErr) {
 				// 上游 HTTP 200 + SSE 流体内出现 event:error 帧。
 				body := []byte(sseErr.RawData)
-				semanticStatus := http.StatusForbidden
-				if c.Writer.Size() == writerSizeBeforeStream && gjson.GetBytes(body, "error.type").String() == "overloaded_error" {
-					semanticStatus = 529
+				// A stream failure is not an authorization failure. Only explicit
+				// permission errors should be represented as forbidden.
+				semanticStatus := anthropicStreamErrorStatus(body)
+				if c.Writer.Size() == writerSizeBeforeStream && semanticStatus == 529 {
 					syntheticResp := &http.Response{
 						StatusCode: semanticStatus,
 						Header:     resp.Header.Clone(),

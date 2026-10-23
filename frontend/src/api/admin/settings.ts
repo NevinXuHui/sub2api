@@ -1618,3 +1618,33 @@ export const settingsAPI = {
 };
 
 export default settingsAPI;
+
+export interface NodeFailureSettings {
+  failure_rate_percent: number;
+  window_minutes: number;
+  failure_threshold: number;
+  cooldown_minutes: number;
+}
+
+export async function getNodeFailureSettings(): Promise<NodeFailureSettings> {
+  const { data } = await apiClient.get<NodeFailureSettings>("/admin/settings/node-failure");
+  return data;
+}
+
+export async function updateNodeFailureSettings(settings: NodeFailureSettings): Promise<NodeFailureSettings> {
+  const { data } = await apiClient.put<NodeFailureSettings>("/admin/settings/node-failure", settings);
+  return data;
+}
+
+export interface AccountDailyDiscountSettings {
+  enabled: boolean;
+  tiers: Array<{ threshold_usd: number; discount: number }>;
+}
+export async function getAccountDailyDiscountSettings(): Promise<AccountDailyDiscountSettings> {
+  const { data } = await apiClient.get<AccountDailyDiscountSettings>("/admin/settings/account-daily-discount");
+  return data;
+}
+export async function updateAccountDailyDiscountSettings(settings: AccountDailyDiscountSettings): Promise<AccountDailyDiscountSettings> {
+  const { data } = await apiClient.put<AccountDailyDiscountSettings>("/admin/settings/account-daily-discount", settings);
+  return data;
+}

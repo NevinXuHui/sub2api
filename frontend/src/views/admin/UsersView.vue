@@ -792,6 +792,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -1147,7 +1149,6 @@ const filterDropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 
 // localStorage keys
-const FILTER_VALUES_KEY = 'user-filter-values'
 const VISIBLE_FILTERS_KEY = 'user-visible-filters'
 
 // All filterable attribute definitions (enabled attributes)
@@ -1172,18 +1173,7 @@ const loadSavedFilters = () => {
       const parsed = JSON.parse(savedVisible) as string[]
       parsed.forEach(key => visibleFilters.add(key))
     }
-    // Load filter values
-    const savedValues = localStorage.getItem(FILTER_VALUES_KEY)
-    if (savedValues) {
-      const parsed = JSON.parse(savedValues)
-      if (parsed.role) filters.role = parsed.role
-      if (parsed.status) filters.status = parsed.status
-      if (parsed.group) filters.group = parsed.group
-      if (typeof parsed.apiKeyGroup === 'number') filters.apiKeyGroup = parsed.apiKeyGroup
-      if (parsed.attributes) {
-        Object.assign(activeAttributeFilters, parsed.attributes)
-      }
-    }
+
   } catch (e) {
     console.error('Failed to load saved filters:', e)
   }
@@ -1194,15 +1184,7 @@ const saveFiltersToStorage = () => {
   try {
     // Save visible filters
     localStorage.setItem(VISIBLE_FILTERS_KEY, JSON.stringify([...visibleFilters]))
-    // Save filter values
-    const values = {
-      role: filters.role,
-      status: filters.status,
-      group: filters.group,
-      apiKeyGroup: filters.apiKeyGroup,
-      attributes: activeAttributeFilters
-    }
-    localStorage.setItem(FILTER_VALUES_KEY, JSON.stringify(values))
+
   } catch (e) {
     console.error('Failed to save filters:', e)
   }
@@ -1909,4 +1891,6 @@ onUnmounted(() => {
   clearTimeout(searchTimeout)
   abortController?.abort()
 })
+
+usePersistedFilters('admin/UsersView', { searchQuery, filters, activeAttributeFilters })
 </script>

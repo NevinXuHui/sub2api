@@ -27,6 +27,13 @@ func (s *adminServiceImpl) ListAccounts(ctx context.Context, page, pageSize int,
 			return nil, 0, err
 		}
 	}
+	for _, id := range AccountListGroups(ctx) {
+		if id > 0 {
+			if err := s.ValidateAccountGroupBindings(ctx, []int64{id}); err != nil {
+				return nil, 0, err
+			}
+		}
+	}
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize, SortBy: sortBy, SortOrder: sortOrder}
 	accounts, result, err := s.accountRepo.ListWithFilters(ctx, params, platform, accountType, status, search, groupID, privacyMode)
 	if err != nil {
@@ -1238,17 +1245,9 @@ func (s *adminServiceImpl) resolveBulkUpdateTargetIDs(ctx context.Context, filte
 		return nil, nil
 	}
 
-	groupID := int64(0)
-	switch strings.TrimSpace(filters.Group) {
-	case "":
-	case "ungrouped":
-		groupID = AccountListGroupUngrouped
-	default:
-		parsedGroupID, err := strconv.ParseInt(strings.TrimSpace(filters.Group), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid group filter: %w", err)
-		}
-		groupID = parsedGroupID
+	ctx, groupID, err := ParseAccountListGroups(ctx, filters.Group)
+	if err != nil {
+		return nil, err
 	}
 
 	const pageSize = 500

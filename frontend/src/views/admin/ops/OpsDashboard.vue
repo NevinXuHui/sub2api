@@ -141,6 +141,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useDebounceFn, useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
@@ -862,4 +864,6 @@ watch(showSettingsDialog, async (show) => {
     await loadDashboardAdvancedSettings()
   }
 })
+
+usePersistedFilters('admin/ops/OpsDashboard', { timeRange, platform, groupId, queryMode, customStartTime, customEndTime }, { skipRestore: () => Object.keys(route.query).length > 0 })
 </script>

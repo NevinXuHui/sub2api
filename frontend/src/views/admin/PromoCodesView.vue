@@ -386,6 +386,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -744,4 +746,6 @@ onUnmounted(() => {
   clearTimeout(searchTimeout)
   abortController?.abort()
 })
+
+usePersistedFilters('admin/PromoCodesView', { searchQuery, filters })
 </script>

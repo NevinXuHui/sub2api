@@ -1370,3 +1370,8 @@ export const opsAPI = {
 }
 
 export default opsAPI
+
+export async function clearRequestErrors(before: string): Promise<{ deleted: number }> {
+  const { data } = await apiClient.post<{ deleted: number }>('/admin/ops/errors/clear', { before, confirm: true })
+  return data
+}

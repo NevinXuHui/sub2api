@@ -203,6 +203,8 @@
 
         <!-- Tab: Gateway -->
         <div v-show="activeTab === 'gateway'" class="space-y-6">
+          <AccountDailyDiscountSettings />
+          <NodeFailureSettings />
           <!-- Overload Cooldown (529) Settings -->
           <div class="card">
             <div
@@ -8975,7 +8977,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from "vue";
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
+import { ref, reactive, computed, onMounted, watch, toRef } from "vue";
 import { listPlatformIds } from "@/constants/platformCatalog";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
@@ -9012,6 +9016,8 @@ import type {
   Proxy,
 } from "@/types";
 import type { ProviderInstance } from "@/types/payment";
+import AccountDailyDiscountSettings from "@/components/admin/settings/AccountDailyDiscountSettings.vue";
+import NodeFailureSettings from "@/components/admin/settings/NodeFailureSettings.vue";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import Icon from "@/components/icons/Icon.vue";
 import Select, { type SelectOption } from "@/components/common/Select.vue";
@@ -13299,6 +13305,8 @@ watch(
     }
   },
 );
+
+usePersistedFilters('admin/SettingsView/affiliates', { search: toRef(affiliateState, 'search') })
 </script>
 
 <style scoped>

@@ -737,6 +737,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 
 	usage := &ClaudeUsage{}
 	var firstTokenMs *int
+	var ttftReporting kiroTTFTReporting
 	scanner := bufio.NewScanner(resp.Body)
 	// 设置更大的buffer以处理长行
 	maxLineSize := defaultMaxLineSize
@@ -845,7 +846,10 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			// json.Marshal 不可能在已知 string-only 输入上失败，保守 fallback
 			body = []byte(fmt.Sprintf(`{"type":"error","error":{"type":%q,"message":%q}}`, reason, message))
 		}
-		_, _ = fmt.Fprintf(w, "event: error\ndata: %s\n\n", body)
+		if _, err := fmt.Fprintf(w, "event: error\ndata: %s\n\n", body); err == nil {
+			MarkResponseCommitted(c)
+			MarkOpsStreamFailure(c, reason, reason, message, http.StatusBadGateway)
+		}
 		flusher.Flush()
 	}
 
@@ -876,7 +880,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			}
 		}
 
-		if eventName == "error" {
+		if eventName == "error" || gjson.Get(dataLine, "type").String() == "error" {
 			return nil, dataLine, nil, &sseStreamErrorEventError{RawData: dataLine}
 		}
 
@@ -1073,6 +1077,9 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream read error: %w", ev.err)
 			}
 			line := ev.line
+			if ttftReporting.observe(line) {
+				continue
+			}
 			trimmed := strings.TrimSpace(line)
 
 			if trimmed == "" {
@@ -1105,8 +1112,13 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 						}
 					}
 					if data != "" {
-						if firstTokenMs == nil && data != "[DONE]" {
+						if firstTokenMs == nil && anthropicSSEHasContent(data) {
 							ms := int(time.Since(startTime).Milliseconds())
+							reportedMs := ttftReporting.reported(ms)
+							if reportedMs != ms {
+								logger.LegacyPrintf("service.gateway", "Kiro TTFT reporting cap: account=%d actual_first_token_ms=%d reported_first_token_ms=%d", account.ID, ms, reportedMs)
+							}
+							ms = reportedMs
 							firstTokenMs = &ms
 						}
 						if usagePatch != nil {

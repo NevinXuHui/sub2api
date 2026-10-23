@@ -1147,6 +1147,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { computed, onMounted, onUnmounted, reactive, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -2469,4 +2471,6 @@ onUnmounted(() => {
     statusTimer = null
   }
 })
+
+usePersistedFilters('admin/RiskControlView', { filters })
 </script>

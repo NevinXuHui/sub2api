@@ -336,6 +336,21 @@ describe('EditAccountModal', () => {
 
   afterEach(() => vi.useRealTimers())
 
+  it('allows clearing concurrency before entering its replacement', async () => {
+    const wrapper = mountModal()
+    const input = wrapper.find('input[type="number"][min="1"][required]')
+    expect(input.exists()).toBe(true)
+    await input.setValue('')
+    expect((input.element as HTMLInputElement).value).toBe('')
+    await input.setValue('25')
+    await input.trigger('blur')
+    expect((input.element as HTMLInputElement).value).toBe('25')
+    await input.setValue('')
+    await input.trigger('blur')
+    expect((input.element as HTMLInputElement).value).toBe('1')
+    wrapper.unmount()
+  })
+
   it('passes existing non-identity mappings to the whitelist selector and preserves them on save', async () => {
     const account = buildAccount()
     account.credentials.model_mapping = { 'gpt-5.2': 'gpt-5.2', 'gpt-latest': 'deepseek-chat' }

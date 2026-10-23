@@ -721,7 +721,7 @@
             class="input"
             :class="!enableConcurrency && 'cursor-not-allowed opacity-50'"
             aria-labelledby="bulk-edit-concurrency-label"
-            @input="concurrency = Math.max(1, concurrency || 1)"
+            required step="1" @blur="concurrency = Math.max(1, concurrency || 1)"
           />
         </div>
         <div>

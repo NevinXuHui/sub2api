@@ -7,6 +7,7 @@ import (
 
 // opsRepoMock is a test-only OpsRepository implementation with optional function hooks.
 type opsRepoMock struct {
+	ClearRequestErrorsFn          func(context.Context, time.Time) (int64, error)
 	InsertErrorLogFn              func(ctx context.Context, input *OpsInsertErrorLogInput) (int64, error)
 	BatchInsertErrorLogsFn        func(ctx context.Context, inputs []*OpsInsertErrorLogInput) (int64, error)
 	GetErrorLogByIDFn             func(ctx context.Context, id int64) (*OpsErrorLogDetail, error)
@@ -194,3 +195,10 @@ func (m *opsRepoMock) GetLatestDailyBucketDate(ctx context.Context) (time.Time, 
 }
 
 var _ OpsRepository = (*opsRepoMock)(nil)
+
+func (m *opsRepoMock) ClearRequestErrors(ctx context.Context, before time.Time) (int64, error) {
+	if m.ClearRequestErrorsFn != nil {
+		return m.ClearRequestErrorsFn(ctx, before)
+	}
+	return 0, nil
+}

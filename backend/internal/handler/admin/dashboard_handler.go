@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -758,4 +759,17 @@ func (h *DashboardHandler) GetUserBreakdown(c *gin.Context) {
 		"start_date": startTime.Format("2006-01-02"),
 		"end_date":   endTime.Add(-24 * time.Hour).Format("2006-01-02"),
 	})
+}
+
+// GetPerformance returns uncached rolling throughput and recent-request TTFT metrics.
+func (h *DashboardHandler) GetPerformance(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+	stats, err := h.dashboardService.GetDashboardPerformance(ctx)
+	if err != nil {
+		response.InternalError(c, "Failed to get performance statistics")
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	response.Success(c, stats)
 }

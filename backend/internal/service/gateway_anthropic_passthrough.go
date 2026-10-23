@@ -255,6 +255,9 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 	var clientDisconnect bool
 	if input.RequestStream {
 		streamResult, err := s.handleStreamingResponseAnthropicAPIKeyPassthrough(ctx, resp, c, account, input.StartTime, input.RequestModel)
+		if streamResult != nil && streamResult.clientDisconnect {
+			c.Set(nodeFailureClientDisconnectedKey, true)
+		}
 		if err != nil {
 			// 流中断时保留已观测到的 usage 与错误一起返回，避免上游已计量的请求
 			// 完全漏记漏计费（issue #5148）。
@@ -412,6 +415,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 
 	usage := &ClaudeUsage{}
 	var firstTokenMs *int
+	var ttftReporting kiroTTFTReporting
 	clientDisconnected := false
 	sawTerminalEvent := false
 
@@ -533,14 +537,25 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 			}
 
 			line := ev.line
+			if ttftReporting.observe(line) {
+				continue
+			}
 			if data, ok := extractAnthropicSSEDataLine(line); ok {
 				trimmed := strings.TrimSpace(data)
+				if gjson.Get(trimmed, "type").String() == "error" {
+					c.Set(nodeFailureSSEKey, trimmed)
+				}
 				observer.ObserveAnthropic([]byte(trimmed))
 				if anthropicStreamEventIsTerminal("", trimmed) {
 					sawTerminalEvent = true
 				}
-				if firstTokenMs == nil && trimmed != "" && trimmed != "[DONE]" {
+				if firstTokenMs == nil && anthropicSSEHasContent(trimmed) {
 					ms := int(time.Since(startTime).Milliseconds())
+					reportedMs := ttftReporting.reported(ms)
+					if reportedMs != ms {
+						logger.LegacyPrintf("service.gateway", "Kiro TTFT reporting cap: account=%d actual_first_token_ms=%d reported_first_token_ms=%d", account.ID, ms, reportedMs)
+					}
+					ms = reportedMs
 					firstTokenMs = &ms
 				}
 				parseSSEUsagePassthrough(data, usage)
@@ -649,6 +664,29 @@ func parseSSEUsagePassthrough(data string, usage *ClaudeUsage) {
 	case "message_delta":
 		deltaUsage := parsed.Get("usage")
 		if deltaUsage.Exists() {
+			// Kiro marks a complete failure-settlement snapshot explicitly. Its
+			// zeroes are authoritative (preparation may fail before model usage),
+			// while other providers retain selective non-zero merge semantics.
+			if deltaUsage.Get("usage_snapshot").Bool() {
+				fields := []string{"input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"}
+				values := [4]int{}
+				valid := true
+				for i, field := range fields {
+					value := deltaUsage.Get(field)
+					if value.Type != gjson.Number || value.Int() < 0 || float64(value.Int()) != value.Num {
+						valid = false
+						break
+					}
+					values[i] = int(value.Int())
+				}
+				if valid {
+					usage.InputTokens, usage.OutputTokens = values[0], values[1]
+					usage.CacheCreationInputTokens, usage.CacheReadInputTokens = values[2], values[3]
+					usage.CacheCreation5mTokens, usage.CacheCreation1hTokens = 0, 0
+				}
+				// Never partially apply a malformed complete snapshot.
+				return
+			}
 			if v := deltaUsage.Get("input_tokens").Int(); v > 0 {
 				usage.InputTokens = int(v)
 			}

@@ -1,8 +1,19 @@
 <template>
   <div class="card p-4">
-    <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
-      {{ t('admin.dashboard.tokenUsageTrend') }}
-    </h3>
+    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+        {{ t('admin.dashboard.tokenUsageTrend') }}
+      </h3>
+      <Select
+        v-if="models"
+        class="w-full min-w-0 sm:w-64"
+        :model-value="model || ''"
+        :options="modelOptions"
+        :aria-label="t('admin.dashboard.model')"
+        searchable
+        @update:model-value="$emit('update:model', String($event ?? ''))"
+      />
+    </div>
     <div v-if="loading" class="flex h-48 items-center justify-center">
       <LoadingSpinner />
     </div>
@@ -34,6 +45,7 @@ import {
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import Select from '@/components/common/Select.vue'
 import type { TrendDataPoint } from '@/types'
 
 ChartJS.register(
@@ -52,7 +64,17 @@ const { t } = useI18n()
 const props = defineProps<{
   trendData: TrendDataPoint[]
   loading?: boolean
+  models?: string[]
+  model?: string
 }>()
+
+defineEmits<{ 'update:model': [value: string] }>()
+
+const modelOptions = computed(() => [
+  { value: '', label: t('admin.dashboard.allModels') },
+  ...[...new Set([...(props.models || []), ...(props.model ? [props.model] : [])])]
+    .sort().map(model => ({ value: model, label: model }))
+])
 
 const isDarkMode = computed(() => {
   return document.documentElement.classList.contains('dark')

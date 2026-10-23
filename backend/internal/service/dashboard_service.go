@@ -431,3 +431,14 @@ func (s *DashboardService) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyI
 	}
 	return stats, nil
 }
+
+// GetDashboardPerformance intentionally avoids the shared, slower overview cache.
+func (s *DashboardService) GetDashboardPerformance(ctx context.Context) (*usagestats.DashboardPerformance, error) {
+	repo, ok := s.usageRepo.(interface {
+		GetDashboardPerformance(context.Context) (*usagestats.DashboardPerformance, error)
+	})
+	if !ok {
+		return nil, errors.New("dashboard performance statistics unavailable")
+	}
+	return repo.GetDashboardPerformance(ctx)
+}

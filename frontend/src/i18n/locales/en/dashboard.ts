@@ -475,6 +475,11 @@ export default {
     },
     tabs: { usage: 'Usage', errors: 'Error Requests', ranking: 'User Ranking' },
     errors: {
+      clearRecords: "Clear error records",
+      clearConfirm: "Permanently delete all error requests recorded before this dialog opened, ignoring current filters. Usage records and newer errors are retained. Test and production share the database, so this affects both environments and cannot be undone. Continue?",
+      clearSuccess: "Cleared {count} error records",
+      clearFailed: "Cleanup failed; some records may already have been removed. Refresh and retry.",
+
       time: 'Time', model: 'Model', endpoint: 'Endpoint', status: 'Status',
       category: 'Category', platform: 'Platform', message: 'Message',
       keyName: 'Key Name', keyDeleted: 'Deleted', allKeys: 'All keys',

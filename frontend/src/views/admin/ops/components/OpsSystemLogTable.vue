@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
@@ -396,6 +398,8 @@ onMounted(async () => {
   }
   await Promise.all([fetchLogs(), fetchHealth(), loadRuntimeConfig()])
 })
+
+usePersistedFilters('admin/ops/components/OpsSystemLogTable', { filters })
 </script>
 
 <template>

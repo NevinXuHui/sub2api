@@ -10,7 +10,6 @@ import (
 
 	"log/slog"
 
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -551,17 +550,9 @@ func (h *AccountHandler) resolveExportAccounts(ctx context.Context, ids []int64,
 		search = search[:100]
 	}
 
-	groupID := int64(0)
-	if groupIDStr := c.Query("group"); groupIDStr != "" {
-		if groupIDStr == accountListGroupUngroupedQueryValue {
-			groupID = service.AccountListGroupUngrouped
-		} else {
-			parsedGroupID, parseErr := strconv.ParseInt(groupIDStr, 10, 64)
-			if parseErr != nil || parsedGroupID <= 0 {
-				return nil, infraerrors.BadRequest("INVALID_GROUP_FILTER", "invalid group filter")
-			}
-			groupID = parsedGroupID
-		}
+	ctx, groupID, err := service.ParseAccountListGroups(ctx, c.Query("group"))
+	if err != nil {
+		return nil, err
 	}
 
 	return h.listAccountsFiltered(ctx, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)

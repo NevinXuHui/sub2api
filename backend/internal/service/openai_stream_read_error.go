@@ -78,7 +78,7 @@ func classifyOpenAIUpstreamStreamReadError(err error) (code, message string) {
 		// "stream error: stream ID ..."; match only the transport signature and
 		// never pass the original text to the client.
 		if strings.Contains(lower, "stream error: stream id ") ||
-			(strings.Contains(lower, "http2:") && strings.Contains(lower, "stream")) {
+			(strings.Contains(lower, "http2:") && (strings.Contains(lower, "stream") || strings.Contains(lower, "client connection lost") || strings.Contains(lower, "goaway"))) {
 			return OpenAIUpstreamHTTP2StreamErrorCode, "Upstream HTTP/2 stream failed"
 		}
 	}

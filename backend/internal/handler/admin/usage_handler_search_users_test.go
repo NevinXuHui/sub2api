@@ -54,3 +54,15 @@ func TestAdminUsageSearchUsers_IncludesDeletedAndFlags(t *testing.T) {
 	require.False(t, resp.Data[0].Deleted)
 	require.True(t, resp.Data[1].Deleted, "已删用户必须标记 deleted=true")
 }
+
+func TestAdminUsageSearchUsers_EmptyQueryListsInitialOptions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	stub := &searchUsersAdminStub{}
+	router := gin.New()
+	router.GET("/admin/usage/search-users", NewUsageHandler(nil, nil, stub, nil).SearchUsers)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin/usage/search-users", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.True(t, stub.gotFilters.IncludeDeleted)
+	require.Contains(t, rec.Body.String(), "active@test.com")
+}

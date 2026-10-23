@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 import UsageView from '../UsageView.vue'
+import { pageFilterStorageKey } from '@/composables/usePersistedFilters'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'
@@ -117,6 +118,8 @@ vi.mock('vue-i18n', async () => {
 const simpleStub = { template: '<div><slot /></div>' }
 const chartStub = { template: '<div />' }
 
+beforeEach(() => localStorage.removeItem(pageFilterStorageKey('user/UsageView')))
+
 const usageLog = {
   id: 1,
   request_id: 'req-user-export',
@@ -214,6 +217,24 @@ describe('user UsageView', () => {
     listMyErrorRequests.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
     list.mockResolvedValue({ items: [{ id: 1, name: 'demo-key' }], total: 1, page: 1, page_size: 100, pages: 1 })
     getAvailable.mockResolvedValue([{ id: 1, name: 'default' }])
+  })
+
+  it('restores the saved errors tab and loads its requests', async () => {
+    const key = pageFilterStorageKey('user/UsageView')
+    localStorage.setItem(key, JSON.stringify({ activeTab: 'errors' }))
+    try {
+      const wrapper = mountUsageView()
+      await flushPromises()
+
+      expect((wrapper.vm as any).activeTab).toBe('errors')
+      expect(listMyErrorRequests).toHaveBeenCalledTimes(1)
+
+      await wrapper.findAll('button').find((button) => button.text() === 'Usage records')!.trigger('click')
+      expect(JSON.parse(localStorage.getItem(key) as string).activeTab).toBe('usage')
+      wrapper.unmount()
+    } finally {
+      localStorage.removeItem(key)
+    }
   })
 
   it('loads logs, stats, model stats, and snapshot on first render', async () => {

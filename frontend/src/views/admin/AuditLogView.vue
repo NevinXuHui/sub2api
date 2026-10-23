@@ -352,6 +352,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI, type AuditLog } from '@/api/admin'
@@ -682,4 +684,6 @@ function statusDotClass(status: number): string {
 }
 
 onMounted(fetchLogs)
+
+usePersistedFilters('admin/AuditLogView', { filters, timeRange, customStartTime, customEndTime })
 </script>

@@ -417,6 +417,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
@@ -941,6 +943,8 @@ onMounted(() => {
 onUnmounted(() => {
   if (resetTimer) clearInterval(resetTimer)
 })
+
+usePersistedFilters('KeyUsageView', { currentRange, customStartDate, customEndDate, dailyUsageDays })
 </script>
 
 <style scoped>

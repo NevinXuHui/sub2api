@@ -138,6 +138,12 @@ func (h *UsageHandler) List(c *gin.Context) {
 		return
 	}
 
+	minFirstTokenMS, err := parseMinFirstTokenMS(c)
+	if err != nil {
+		response.BadRequest(c, "Invalid min_first_token_ms: expected a non-negative integer")
+		return
+	}
+
 	var billingType *int8
 	if billingTypeStr := c.Query("billing_type"); billingTypeStr != "" {
 		val, err := strconv.ParseInt(billingTypeStr, 10, 8)
@@ -201,6 +207,7 @@ func (h *UsageHandler) List(c *gin.Context) {
 		NativeCompactionV2:    nativeCompactionV2,
 		BillingType:           billingType,
 		BillingMode:           billingMode,
+		MinFirstTokenMS:       minFirstTokenMS,
 		UpstreamModelMismatch: upstreamModelMismatch,
 		StartTime:             startTime,
 		EndTime:               endTime,
@@ -289,6 +296,12 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 		return
 	}
 
+	minFirstTokenMS, err := parseMinFirstTokenMS(c)
+	if err != nil {
+		response.BadRequest(c, "Invalid min_first_token_ms: expected a non-negative integer")
+		return
+	}
+
 	var billingType *int8
 	if billingTypeStr := c.Query("billing_type"); billingTypeStr != "" {
 		val, err := strconv.ParseInt(billingTypeStr, 10, 8)
@@ -360,6 +373,7 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 		NativeCompactionV2:    nativeCompactionV2,
 		BillingType:           billingType,
 		BillingMode:           billingMode,
+		MinFirstTokenMS:       minFirstTokenMS,
 		UpstreamModelMismatch: upstreamModelMismatch,
 		StartTime:             &startTime,
 		EndTime:               &endTime,
@@ -392,13 +406,12 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 // GET /api/v1/admin/usage/search-users
 func (h *UsageHandler) SearchUsers(c *gin.Context) {
 	keyword := c.Query("q")
+	// Empty queries provide a larger initial list for direct dropdown selection.
+	limit := 30
 	if keyword == "" {
-		response.Success(c, []any{})
-		return
+		limit = 1000
 	}
-
-	// Limit to 30 results
-	users, _, err := h.adminService.ListUsers(c.Request.Context(), 1, 30, service.UserListFilters{Search: keyword, IncludeDeleted: true}, "email", "asc")
+	users, _, err := h.adminService.ListUsers(c.Request.Context(), 1, limit, service.UserListFilters{Search: keyword, IncludeDeleted: true}, "email", "asc")
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -439,7 +452,11 @@ func (h *UsageHandler) SearchAPIKeys(c *gin.Context) {
 		userID = id
 	}
 
-	keys, err := h.apiKeyService.SearchAPIKeys(c.Request.Context(), userID, keyword, 30)
+	limit := 30
+	if keyword == "" {
+		limit = 1000
+	}
+	keys, err := h.apiKeyService.SearchAPIKeys(c.Request.Context(), userID, keyword, limit)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -647,4 +664,17 @@ func (h *UsageHandler) CancelCleanupTask(c *gin.Context) {
 	}
 	logger.LegacyPrintf("handler.admin.usage", "[UsageCleanup] 清理任务已取消: task=%d operator=%d", taskID, subject.UserID)
 	response.Success(c, gin.H{"id": taskID, "status": service.UsageCleanupStatusCanceled})
+}
+
+func parseMinFirstTokenMS(c *gin.Context) (*int, error) {
+	raw := strings.TrimSpace(c.Query("min_first_token_ms"))
+	if raw == "" {
+		return nil, nil
+	}
+	value, err := strconv.ParseUint(raw, 10, 31)
+	if err != nil {
+		return nil, err
+	}
+	result := int(value)
+	return &result, nil
 }

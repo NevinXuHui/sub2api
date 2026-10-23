@@ -150,6 +150,20 @@ func TestGatewayForwardErrorAlreadyCommunicated(t *testing.T) {
 		assert.NotContains(t, body, `data: {"type":"error"`)
 	})
 
+	t.Run("committed terminal SSE never receives a second error", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, EndpointMessages, nil)
+		c.Header("Content-Type", "text/event-stream")
+		before := c.Writer.Size()
+		_, _ = c.Writer.WriteString("event: error\ndata: {\"type\":\"error\"}\n\n")
+		service.MarkResponseCommitted(c)
+		require.True(t, gatewayForwardErrorAlreadyCommunicated(c, before, errors.New("stream read error: unexpected EOF")))
+		h := &GatewayHandler{}
+		require.False(t, h.ensureForwardErrorResponse(c, true))
+		require.Equal(t, 1, strings.Count(w.Body.String(), "event: error"))
+	})
+
 	t.Run("sse ping still needs fallback", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)

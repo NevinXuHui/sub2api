@@ -480,6 +480,11 @@ export default {
     },
     tabs: { usage: '用量明细', errors: '错误请求', ranking: '用户排行' },
     errors: {
+      clearRecords: "清空错误记录",
+      clearConfirm: "将永久删除打开此确认框之前的全部错误请求记录（忽略当前筛选）。用量明细不受影响，之后的新错误保留。测试和线上共用数据库，清理会同时影响两边，且无法撤销。是否继续？",
+      clearSuccess: "已清理 {count} 条错误记录",
+      clearFailed: "清理失败，部分记录可能已清理，请刷新后重试",
+
       time: '时间', model: '模型', endpoint: '端点', status: '状态码',
       category: '分类', platform: '平台', message: '错误信息',
       keyName: 'Key 名称', keyDeleted: '已删除', allKeys: '全部 Key',

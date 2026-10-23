@@ -25,7 +25,7 @@
                 @focus="showFilterUserDropdown = true"
               />
               <button
-                v-if="selectedFilterUser"
+                v-if="filters.user_id"
                 @click="clearFilterUser"
                 type="button"
                 class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -840,6 +840,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -1199,7 +1201,7 @@ const searchFilterUsers = async () => {
   const keyword = filterUserKeyword.value.trim()
 
   // Clear active user filter if user modified the search keyword
-  if (selectedFilterUser.value && keyword !== selectedFilterUser.value.email) {
+  if (filters.user_id && (!selectedFilterUser.value || keyword !== selectedFilterUser.value.email)) {
     selectedFilterUser.value = null
     filters.user_id = null
     applyFilters()
@@ -1623,6 +1625,8 @@ onUnmounted(() => {
     clearTimeout(userSearchTimeout)
   }
 })
+
+usePersistedFilters('admin/SubscriptionsView', { filters, filterUserKeyword, sortState })
 </script>
 
 <style scoped>

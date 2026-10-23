@@ -7,11 +7,310 @@
       </div>
 
       <template v-else-if="stats">
-        <!-- Row 1: Core Stats -->
-        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <!-- Responsive stats: performance first, full width on mobile -->
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <!-- Performance (RPM/TPM) -->
+          <div class="card col-span-2 min-w-0 p-3 sm:col-span-1 sm:p-4">
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+              <div class="shrink-0 rounded-lg bg-violet-100 p-2 dark:bg-violet-900/30">
+                <Icon name="bolt" size="md" class="text-violet-600 dark:text-violet-400" :stroke-width="2" />
+              </div>
+              <div class="min-w-max flex-1">
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('admin.dashboard.performance') }}
+                </p>
+                <div class="flex items-baseline gap-2">
+                  <p class="text-xl font-bold text-gray-900 dark:text-white">
+                    {{ performance ? formatTokens(performance.rpm) : '—' }}
+                  </p>
+                  <span class="text-xs text-gray-500 dark:text-gray-400">RPM</span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                  <p class="text-sm font-semibold text-violet-600 dark:text-violet-400">
+                    {{ performance ? formatTokens(performance.tpm) : '—' }}
+                  </p>
+                  <span class="text-xs text-gray-500 dark:text-gray-400">TPM</span>
+                </div>
+              </div>
+              <div class="ml-auto shrink-0 border-l border-gray-100 pl-2 text-right sm:pl-3 dark:border-dark-700" data-testid="recent-errors" :title="t('admin.dashboard.recentErrorsHint')">
+                <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.dashboard.recentErrors') }}</p>
+                <p class="text-xl font-bold tabular-nums" :class="performance?.error_count ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'">
+                  {{ performance?.error_count != null ? formatNumber(performance.error_count) : '—' }}
+                </p>
+                <div class="mt-1" data-testid="hour-errors" :title="t('admin.dashboard.hourErrorsHint')">
+                  <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.dashboard.hourErrors') }}</p>
+                  <p class="text-sm font-semibold tabular-nums" :class="performance?.hour_error_count ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'">
+                    {{ performance?.hour_error_count != null ? formatNumber(performance.hour_error_count) : '—' }}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <p class="mt-2 text-xs text-gray-600 dark:text-gray-300" data-testid="recent-ttft">
+              {{ t('admin.dashboard.recentFirstToken') }}:
+              <strong>{{ formatFirstToken(performance?.avg_first_token_ms) }}</strong>
+              <span v-if="performance"> · {{ t('admin.dashboard.firstTokenSamples', { count: performance.first_token_samples ?? 0 }) }}</span>
+            </p>
+            <p v-if="performanceError" role="status" class="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              {{ t('admin.dashboard.performanceRefreshFailed') }}
+            </p>
+            <div v-if="performance" class="mt-2 max-h-48 overflow-auto">
+              <table class="w-full table-fixed text-xs" data-testid="model-performance">
+                <tbody>
+                  <template v-for="item in performance.models" :key="item.model">
+                    <tr>
+                      <th colspan="3" scope="rowgroup" class="break-all pt-1.5 pb-0.5 text-left font-medium text-gray-700 dark:text-gray-300" :title="item.model">{{ item.model }}</th>
+                    </tr>
+                    <tr class="border-b border-gray-100 dark:border-dark-700">
+                      <td colspan="3" class="pb-1.5 tabular-nums">
+                        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5" data-testid="model-performance-values">
+                          <span class="inline-flex items-baseline gap-1 whitespace-nowrap">
+                            <span class="text-gray-500 dark:text-gray-400">RPM</span>
+                            <span>{{ formatTokens(item.rpm) }}</span>
+                          </span>
+                          <span class="inline-flex items-baseline gap-1 whitespace-nowrap">
+                            <span class="text-gray-500 dark:text-gray-400">TPM</span>
+                            <span>{{ formatTokens(item.tpm) }}</span>
+                          </span>
+                          <span class="inline-flex items-baseline gap-1 whitespace-nowrap" :title="t('admin.dashboard.firstTokenSamples', { count: item.first_token_samples ?? 0 })">
+                            <span class="text-gray-500 dark:text-gray-400">{{ t('admin.dashboard.firstTokenAverage') }}</span>
+                            <span>{{ formatFirstToken(item.avg_first_token_ms) }}</span>
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                  <tr v-if="performance.models.length === 0">
+                    <td colspan="3" class="py-2 text-gray-500">{{ t('admin.dashboard.noDataAvailable') }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p v-if="performance" class="mt-2 text-xs text-gray-400">
+              {{ t('admin.dashboard.performanceUpdatedAt', { time: new Date(performance.updated_at).toLocaleTimeString() }) }}
+            </p>
+          </div>
+
+          <!-- Today Requests -->
+          <div class="card col-span-2 min-w-0 p-3 sm:col-span-1 sm:p-4">
+            <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div class="rounded-lg bg-green-100 p-2 dark:bg-green-900/30">
+                <Icon name="chart" size="md" class="text-green-600 dark:text-green-400" :stroke-width="2" />
+              </div>
+              <div>
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('admin.dashboard.todayRequests') }}
+                </p>
+                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                  {{ formatNumber(summaryTotals.todayRequests) }}
+                </p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('common.total') }}: {{ formatNumber(stats.total_requests) }}
+                </p>
+              </div>
+              <div class="min-w-0 sm:ml-auto sm:border-l sm:border-gray-100 sm:pl-3 dark:sm:border-dark-700" data-testid="today-errors" :title="t('admin.dashboard.todayErrorsHint')">
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.dashboard.todayErrors') }}</p>
+                <div class="flex flex-wrap items-baseline gap-x-2">
+                  <span class="text-xl font-bold text-red-600 dark:text-red-400">{{ performance?.today_error_count == null ? '—' : formatNumber(performance.today_error_count) }}</span>
+                  <span class="text-sm tabular-nums text-red-600 dark:text-red-400">{{ performance?.today_error_rate == null ? '—' : `${performance.today_error_rate.toFixed(2)}%` }}</span>
+                </div>
+                <p v-if="performanceError" role="status" class="text-xs text-amber-600">{{ t('admin.dashboard.failedToLoad') }}</p>
+              </div>
+            </div>
+            <div class="mt-3 max-h-48 overflow-auto" data-testid="today-requests-models">
+              <table v-if="performance?.today_models || modelSummary" class="w-full table-fixed text-xs">
+                <thead><tr class="text-gray-500 dark:text-gray-400">
+                  <th class="w-1/2 py-1 text-left font-medium">{{ t('usage.model') }}</th>
+                  <th class="py-1 text-right font-medium">{{ t('admin.dashboard.todayRequests') }}</th>
+                  <th class="py-1 text-right font-medium">{{ t('admin.dashboard.errorsAndRate') }}</th>
+                </tr></thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
+                  <tr v-for="item in todayRequestModels" :key="item.model">
+                    <td class="break-words py-1.5 pr-2">{{ item.model }}</td>
+                    <td class="py-1.5 text-right tabular-nums" :title="formatNumber(item.requests)">{{ formatNumber(item.requests) }}</td>
+                    <td class="py-1.5 pl-2 text-right tabular-nums" :class="item.error_count ? 'text-red-600 dark:text-red-400' : 'text-gray-500'">
+                      <span class="block">{{ item.error_count == null ? '—' : formatNumber(item.error_count) }}</span>
+                      <span class="block text-[11px]">{{ item.error_rate == null ? '—' : `${item.error_rate.toFixed(2)}%` }}</span>
+                    </td>
+                  </tr>
+                  <tr v-if="!todayRequestModels.length"><td colspan="3" class="py-2 text-gray-400">{{ t('common.noData') }}</td></tr>
+                </tbody>
+              </table>
+              <p v-else class="text-xs text-gray-400">{{ t('common.loading') }}</p>
+              <p v-if="modelSummaryError" role="status" class="mt-1 text-xs text-amber-600">{{ t('admin.dashboard.failedToLoad') }}</p>
+            </div>
+          </div>
+
+          <!-- Today Tokens -->
+          <div class="card col-span-2 min-w-0 p-3 sm:col-span-1 sm:p-4">
+            <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900/30">
+                <Icon name="cube" size="md" class="text-amber-600 dark:text-amber-400" :stroke-width="2" />
+              </div>
+              <div>
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('admin.dashboard.todayTokens') }}
+                </p>
+                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                  {{ formatTokens(summaryTotals.todayTokens) }}
+                </p>
+                <p class="text-xs">
+                  <span
+                    class="text-green-600 dark:text-green-400"
+                    :title="t('admin.dashboard.actual')"
+                    >${{ formatCost(summaryCosts.today.actual_cost) }}</span
+                  >
+                  <span class="text-gray-400 dark:text-gray-500"> / </span>
+                  <span
+                    class="text-orange-500 dark:text-orange-400"
+                    :title="t('admin.dashboard.accountCost')"
+                    >${{ formatCost(summaryCosts.today.account_cost) }}</span
+                  >
+                  <span class="text-gray-400 dark:text-gray-500"> / </span>
+                  <span
+                    class="text-gray-400 dark:text-gray-500"
+                    :title="t('admin.dashboard.standard')"
+                    >${{ formatCost(summaryCosts.today.cost) }}</span
+                  >
+                </p>
+              </div>
+            </div>
+            <div class="mt-3 max-h-48 overflow-auto" data-testid="today-total_tokens-models">
+              <table v-if="modelSummary" class="w-full table-fixed text-xs">
+                <thead><tr class="text-gray-500 dark:text-gray-400">
+                  <th class="w-2/3 py-1 text-left font-medium">{{ t('usage.model') }}</th>
+                  <th class="py-1 text-right font-medium">Token</th>
+                </tr></thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
+                  <template v-for="item in modelSummary.today" :key="item.model">
+                    <tr>
+                      <td class="break-words py-1.5 pr-2">{{ item.model }}</td>
+                      <td class="py-1.5 text-right tabular-nums" :title="formatNumber(item.total_tokens)">{{ formatTokens(item.total_tokens) }}</td>
+                    </tr>
+                    <tr>
+                      <td colspan="2" class="pb-2">
+                        <dl class="flex flex-wrap gap-x-3 gap-y-1 text-[11px]" data-testid="today-model-costs">
+                          <div class="text-green-600 dark:text-green-400"><dt class="inline">{{ t('admin.dashboard.actual') }}：</dt><dd class="inline tabular-nums">${{ formatCost(item.actual_cost) }}</dd></div>
+                          <div class="text-orange-500 dark:text-orange-400"><dt class="inline">{{ t('admin.dashboard.accountCost') }}：</dt><dd class="inline tabular-nums">${{ formatCost(item.account_cost) }}</dd></div>
+                          <div class="text-gray-500 dark:text-gray-400"><dt class="inline">{{ t('admin.dashboard.standard') }}：</dt><dd class="inline tabular-nums">${{ formatCost(item.cost) }}</dd></div>
+                        </dl>
+                      </td>
+                    </tr>
+                  </template>
+                  <tr v-if="!modelSummary.today.length"><td colspan="2" class="py-2 text-gray-400">{{ t('common.noData') }}</td></tr>
+                </tbody>
+              </table>
+              <p v-else class="text-xs text-gray-400">{{ t('common.loading') }}</p>
+              <p v-if="modelSummaryError" role="status" class="mt-1 text-xs text-amber-600">{{ t('admin.dashboard.failedToLoad') }}</p>
+            </div>
+          </div>
+
+          <!-- Total Tokens -->
+          <div class="card col-span-2 min-w-0 p-3 sm:col-span-1 sm:p-4">
+            <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div class="rounded-lg bg-indigo-100 p-2 dark:bg-indigo-900/30">
+                <Icon name="database" size="md" class="text-indigo-600 dark:text-indigo-400" :stroke-width="2" />
+              </div>
+              <div>
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('admin.dashboard.totalTokens') }}
+                </p>
+                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                  {{ formatTokens(summaryTotals.totalTokens) }}
+                </p>
+                <p class="text-xs">
+                  <span
+                    class="text-green-600 dark:text-green-400"
+                    :title="t('admin.dashboard.actual')"
+                    >${{ formatCost(summaryCosts.total.actual_cost) }}</span
+                  >
+                  <span class="text-gray-400 dark:text-gray-500"> / </span>
+                  <span
+                    class="text-orange-500 dark:text-orange-400"
+                    :title="t('admin.dashboard.accountCost')"
+                    >${{ formatCost(summaryCosts.total.account_cost) }}</span
+                  >
+                  <span class="text-gray-400 dark:text-gray-500"> / </span>
+                  <span
+                    class="text-gray-400 dark:text-gray-500"
+                    :title="t('admin.dashboard.standard')"
+                    >${{ formatCost(summaryCosts.total.cost) }}</span
+                  >
+                </p>
+              </div>
+            </div>
+            <div class="mt-3 max-h-48 overflow-auto" data-testid="total-total_tokens-models">
+              <table v-if="modelSummary" class="w-full table-fixed text-xs">
+                <thead><tr class="text-gray-500 dark:text-gray-400">
+                  <th class="w-2/3 py-1 text-left font-medium">{{ t('usage.model') }}</th>
+                  <th class="py-1 text-right font-medium">Token</th>
+                </tr></thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
+                  <template v-for="item in modelSummary.total" :key="item.model">
+                    <tr>
+                      <td class="break-words py-1.5 pr-2">{{ item.model }}</td>
+                      <td class="py-1.5 text-right tabular-nums" :title="formatNumber(item.total_tokens)">{{ formatTokens(item.total_tokens) }}</td>
+                    </tr>
+                    <tr>
+                      <td colspan="2" class="pb-2">
+                        <dl class="flex flex-wrap gap-x-3 gap-y-1 text-[11px]" data-testid="total-model-costs">
+                          <div class="text-green-600 dark:text-green-400"><dt class="inline">{{ t('admin.dashboard.actual') }}：</dt><dd class="inline tabular-nums">${{ formatCost(item.actual_cost) }}</dd></div>
+                          <div class="text-orange-500 dark:text-orange-400"><dt class="inline">{{ t('admin.dashboard.accountCost') }}：</dt><dd class="inline tabular-nums">${{ formatCost(item.account_cost) }}</dd></div>
+                          <div class="text-gray-500 dark:text-gray-400"><dt class="inline">{{ t('admin.dashboard.standard') }}：</dt><dd class="inline tabular-nums">${{ formatCost(item.cost) }}</dd></div>
+                        </dl>
+                      </td>
+                    </tr>
+                  </template>
+                  <tr v-if="!modelSummary.total.length"><td colspan="2" class="py-2 text-gray-400">{{ t('common.noData') }}</td></tr>
+                </tbody>
+              </table>
+              <p v-else class="text-xs text-gray-400">{{ t('common.loading') }}</p>
+              <p v-if="modelSummaryError" role="status" class="mt-1 text-xs text-amber-600">{{ t('admin.dashboard.failedToLoad') }}</p>
+            </div>
+          </div>
+
+          <!-- Avg Response Time -->
+          <div class="card min-w-0 p-3 sm:p-4">
+            <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div class="rounded-lg bg-rose-100 p-2 dark:bg-rose-900/30">
+                <Icon name="clock" size="md" class="text-rose-600 dark:text-rose-400" :stroke-width="2" />
+              </div>
+              <div>
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('admin.dashboard.avgResponse') }}
+                </p>
+                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                  {{ formatDuration(stats.average_duration_ms) }}
+                </p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ stats.active_users }} {{ t('admin.dashboard.activeUsers') }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- New Users Today -->
+          <div class="card min-w-0 p-3 sm:p-4">
+            <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div class="rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30">
+                <Icon name="userPlus" size="md" class="text-emerald-600 dark:text-emerald-400" :stroke-width="2" />
+              </div>
+              <div>
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {{ t('admin.dashboard.users') }}
+                </p>
+                <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                  +{{ stats.today_new_users }}
+                </p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('common.total') }}: {{ formatNumber(stats.total_users) }}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <!-- Total API Keys -->
-          <div class="card p-4">
-            <div class="flex items-center gap-3">
+          <div class="card min-w-0 p-3 sm:p-4">
+            <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
               <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
                 <Icon name="key" size="md" class="text-blue-600 dark:text-blue-400" :stroke-width="2" />
               </div>
@@ -30,8 +329,8 @@
           </div>
 
           <!-- Service Accounts -->
-          <div class="card p-4">
-            <div class="flex items-center gap-3">
+          <div class="card col-span-2 min-w-0 p-3 sm:col-span-1 sm:p-4">
+            <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
               <div class="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30">
                 <Icon name="server" size="md" class="text-purple-600 dark:text-purple-400" :stroke-width="2" />
               </div>
@@ -54,166 +353,6 @@
             </div>
           </div>
 
-          <!-- Today Requests -->
-          <div class="card p-4">
-            <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-green-100 p-2 dark:bg-green-900/30">
-                <Icon name="chart" size="md" class="text-green-600 dark:text-green-400" :stroke-width="2" />
-              </div>
-              <div>
-                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {{ t('admin.dashboard.todayRequests') }}
-                </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
-                  {{ stats.today_requests }}
-                </p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('common.total') }}: {{ formatNumber(stats.total_requests) }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- New Users Today -->
-          <div class="card p-4">
-            <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30">
-                <Icon name="userPlus" size="md" class="text-emerald-600 dark:text-emerald-400" :stroke-width="2" />
-              </div>
-              <div>
-                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {{ t('admin.dashboard.users') }}
-                </p>
-                <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                  +{{ stats.today_new_users }}
-                </p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('common.total') }}: {{ formatNumber(stats.total_users) }}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Row 2: Token Stats -->
-        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <!-- Today Tokens -->
-          <div class="card p-4">
-            <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900/30">
-                <Icon name="cube" size="md" class="text-amber-600 dark:text-amber-400" :stroke-width="2" />
-              </div>
-              <div>
-                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {{ t('admin.dashboard.todayTokens') }}
-                </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
-                  {{ formatTokens(stats.today_tokens) }}
-                </p>
-                <p class="text-xs">
-                  <span
-                    class="text-green-600 dark:text-green-400"
-                    :title="t('admin.dashboard.actual')"
-                    >${{ formatCost(stats.today_actual_cost) }}</span
-                  >
-                  <span class="text-gray-400 dark:text-gray-500"> / </span>
-                  <span
-                    class="text-orange-500 dark:text-orange-400"
-                    :title="t('admin.dashboard.accountCost')"
-                    >${{ formatCost(stats.today_account_cost) }}</span
-                  >
-                  <span class="text-gray-400 dark:text-gray-500"> / </span>
-                  <span
-                    class="text-gray-400 dark:text-gray-500"
-                    :title="t('admin.dashboard.standard')"
-                    >${{ formatCost(stats.today_cost) }}</span
-                  >
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Total Tokens -->
-          <div class="card p-4">
-            <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-indigo-100 p-2 dark:bg-indigo-900/30">
-                <Icon name="database" size="md" class="text-indigo-600 dark:text-indigo-400" :stroke-width="2" />
-              </div>
-              <div>
-                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {{ t('admin.dashboard.totalTokens') }}
-                </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
-                  {{ formatTokens(stats.total_tokens) }}
-                </p>
-                <p class="text-xs">
-                  <span
-                    class="text-green-600 dark:text-green-400"
-                    :title="t('admin.dashboard.actual')"
-                    >${{ formatCost(stats.total_actual_cost) }}</span
-                  >
-                  <span class="text-gray-400 dark:text-gray-500"> / </span>
-                  <span
-                    class="text-orange-500 dark:text-orange-400"
-                    :title="t('admin.dashboard.accountCost')"
-                    >${{ formatCost(stats.total_account_cost) }}</span
-                  >
-                  <span class="text-gray-400 dark:text-gray-500"> / </span>
-                  <span
-                    class="text-gray-400 dark:text-gray-500"
-                    :title="t('admin.dashboard.standard')"
-                    >${{ formatCost(stats.total_cost) }}</span
-                  >
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Performance (RPM/TPM) -->
-          <div class="card p-4">
-            <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-violet-100 p-2 dark:bg-violet-900/30">
-                <Icon name="bolt" size="md" class="text-violet-600 dark:text-violet-400" :stroke-width="2" />
-              </div>
-              <div class="flex-1">
-                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {{ t('admin.dashboard.performance') }}
-                </p>
-                <div class="flex items-baseline gap-2">
-                  <p class="text-xl font-bold text-gray-900 dark:text-white">
-                    {{ formatTokens(stats.rpm) }}
-                  </p>
-                  <span class="text-xs text-gray-500 dark:text-gray-400">RPM</span>
-                </div>
-                <div class="flex items-baseline gap-2">
-                  <p class="text-sm font-semibold text-violet-600 dark:text-violet-400">
-                    {{ formatTokens(stats.tpm) }}
-                  </p>
-                  <span class="text-xs text-gray-500 dark:text-gray-400">TPM</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Avg Response Time -->
-          <div class="card p-4">
-            <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-rose-100 p-2 dark:bg-rose-900/30">
-                <Icon name="clock" size="md" class="text-rose-600 dark:text-rose-400" :stroke-width="2" />
-              </div>
-              <div>
-                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {{ t('admin.dashboard.avgResponse') }}
-                </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
-                  {{ formatDuration(stats.average_duration_ms) }}
-                </p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ stats.active_users }} {{ t('admin.dashboard.activeUsers') }}
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- Quick Actions -->
@@ -313,7 +452,13 @@
               :end-date="endDate"
               @ranking-click="goToUserUsage"
             />
-            <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
+            <TokenUsageTrend
+              :trend-data="trendData"
+              :loading="chartsLoading"
+              :models="modelStats.map(item => item.model)"
+              :model="trendModel"
+              @update:model="onTrendModelChange"
+            />
           </div>
 
           <!-- User Usage Trend (Full Width) -->
@@ -348,13 +493,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 
 const { t } = useI18n()
 import { adminAPI } from '@/api/admin'
+import type { DashboardPerformance } from '@/api/admin/dashboard'
 import type {
   DashboardStats,
   TrendDataPoint,
@@ -398,6 +546,70 @@ const appStore = useAppStore()
 const router = useRouter()
 const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 const stats = ref<DashboardStats | null>(null)
+// Independent of the chart date filter; use the same requested-model dimension as performance.
+const modelSummary = ref<{ today: ModelStat[]; total: ModelStat[] } | null>(null)
+const modelSummaryError = ref(false)
+let modelSummaryTimer: ReturnType<typeof setInterval> | undefined
+let modelSummaryController: AbortController | null = null
+const todayRequestModels = computed(() => performance.value?.today_models ??
+  (modelSummary.value?.today ?? []).map(row => ({ model: row.model, requests: row.requests, error_count: undefined, error_rate: undefined })))
+const summaryTotals = computed(() => ({
+  todayRequests: modelSummary.value?.today.reduce((sum, row) => sum + row.requests, 0) ?? stats.value?.today_requests ?? 0,
+  todayTokens: modelSummary.value?.today.reduce((sum, row) => sum + row.total_tokens, 0) ?? stats.value?.today_tokens ?? 0,
+  totalTokens: modelSummary.value?.total.reduce((sum, row) => sum + row.total_tokens, 0) ?? stats.value?.total_tokens ?? 0,
+}))
+const summaryCosts = computed(() => {
+  const sumCosts = (rows: ModelStat[] | undefined, period: 'today' | 'total') => ({
+    actual_cost: rows ? rows.reduce((sum, row) => sum + (row.actual_cost || 0), 0) : stats.value?.[`${period}_actual_cost`] ?? 0,
+    account_cost: rows ? rows.reduce((sum, row) => sum + (row.account_cost || 0), 0) : stats.value?.[`${period}_account_cost`] ?? 0,
+    cost: rows ? rows.reduce((sum, row) => sum + (row.cost || 0), 0) : stats.value?.[`${period}_cost`] ?? 0,
+  })
+  return { today: sumCosts(modelSummary.value?.today, 'today'), total: sumCosts(modelSummary.value?.total, 'total') }
+})
+const loadModelSummary = async () => {
+  if (performanceDisposed || modelSummaryController || document.visibilityState === 'hidden') return
+  const controller = new AbortController()
+  modelSummaryController = controller
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  try {
+    const [daily, total] = await Promise.all([
+      adminAPI.dashboard.getModelStats({ start_date: today, end_date: today, model_source: 'requested' }, controller.signal),
+      adminAPI.dashboard.getModelStats({ start_date: '1970-01-01', end_date: today, model_source: 'requested' }, controller.signal),
+    ])
+    if (performanceDisposed) return
+    modelSummary.value = { today: daily.models || [], total: total.models || [] }
+    modelSummaryError.value = false
+  } catch {
+    if (!performanceDisposed) modelSummaryError.value = true
+  } finally {
+    modelSummaryController = null
+  }
+}
+const formatFirstToken = (ms: number | null | undefined) => ms == null ? '—' : `${(ms / 1000).toFixed(2)} s`
+
+const performance = ref<DashboardPerformance | null>(null)
+const performanceError = ref(false)
+let performanceTimer: ReturnType<typeof setInterval> | undefined
+let performanceController: AbortController | null = null
+let performanceDisposed = false
+
+const loadPerformance = async () => {
+  if (performanceDisposed || performanceController || document.visibilityState === 'hidden') return
+  const controller = new AbortController()
+  performanceController = controller
+  try {
+    const result = await adminAPI.dashboard.getPerformance(controller.signal)
+    if (performanceDisposed) return
+    performance.value = result
+    performanceError.value = false
+  } catch {
+    if (!performanceDisposed) performanceError.value = true
+  } finally {
+    performanceController = null
+  }
+}
+
 const loading = ref(false)
 const chartsLoading = ref(false)
 const userTrendLoading = ref(false)
@@ -406,6 +618,7 @@ const rankingError = ref(false)
 
 // Chart data
 const trendData = ref<TrendDataPoint[]>([])
+const trendModel = ref('')
 const modelStats = ref<ModelStat[]>([])
 const userTrend = ref<UserUsageTrendPoint[]>([])
 const userTrendMetric = ref<'tokens' | 'actual_cost'>('tokens')
@@ -654,6 +867,12 @@ const onDateRangeChange = (range: {
   loadChartData()
 }
 
+const onTrendModelChange = (model: string) => {
+  trendModel.value = model
+  trendData.value = []
+  void loadDashboardSnapshot(false)
+}
+
 // Load data
 const loadDashboardSnapshot = async (includeStats: boolean) => {
   const currentSeq = ++chartLoadSeq
@@ -668,6 +887,7 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
       granularity: granularity.value,
       include_stats: includeStats,
       include_trend: true,
+      model: trendModel.value || undefined,
       include_model_stats: true,
       include_group_stats: false,
       include_users_trend: false
@@ -770,7 +990,24 @@ const loadChartData = async () => {
 onMounted(() => {
   void refreshBatchImageAccess()
   loadDashboardStats()
+  void loadPerformance()
+  void loadModelSummary()
+  modelSummaryTimer = setInterval(() => { void loadModelSummary() }, 60_000)
+  document.addEventListener('visibilitychange', loadModelSummary)
+  performanceTimer = setInterval(() => { void loadPerformance() }, 10_000)
+  document.addEventListener('visibilitychange', loadPerformance)
 })
+onUnmounted(() => {
+  performanceDisposed = true
+  if (modelSummaryTimer) clearInterval(modelSummaryTimer)
+  modelSummaryController?.abort()
+  document.removeEventListener('visibilitychange', loadModelSummary)
+  if (performanceTimer) clearInterval(performanceTimer)
+  performanceController?.abort()
+  document.removeEventListener('visibilitychange', loadPerformance)
+})
+
+usePersistedFilters('admin/DashboardView', { startDate, endDate, granularity, userTrendMetric, trendModel })
 </script>
 
 <style scoped>

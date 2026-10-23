@@ -257,6 +257,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -622,4 +624,6 @@ onUnmounted(() => {
   if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer)
   currentController?.abort()
 })
+
+usePersistedFilters('admin/AnnouncementsView', { searchQuery, filters })
 </script>

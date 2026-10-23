@@ -1100,7 +1100,7 @@ func (r *accountRepository) accountListFilteredQuery(platform, accountType, stat
 }
 
 func (r *accountRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]service.Account, *pagination.PaginationResult, error) {
-	q := r.accountListFilteredQuery(platform, accountType, status, search, groupID, privacyMode)
+	q := applyAccountListGroups(ctx, r.accountListFilteredQuery(platform, accountType, status, search, groupID, privacyMode))
 	// Clone before Count so interceptor-appended predicates (SoftDeleteMixin's
 	// deleted_at IS NULL) don't accumulate on the shared builder and pollute the
 	// subsequent list query. Same pattern used in group_repo/promo_code_repo/user_repo
@@ -1130,7 +1130,7 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 }
 
 func (r *accountRepository) ListAllWithFilters(ctx context.Context, platform, accountType, status, search string, groupID int64, privacyMode string) ([]service.Account, error) {
-	accounts, err := r.accountListFilteredQuery(platform, accountType, status, search, groupID, privacyMode).All(ctx)
+	accounts, err := applyAccountListGroups(ctx, r.accountListFilteredQuery(platform, accountType, status, search, groupID, privacyMode)).All(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -4083,4 +4083,20 @@ func (r *accountRepository) ListShadowsByParent(ctx context.Context, parentID in
 		out = append(out, accountEntityToService(m))
 	}
 	return out, nil
+}
+
+func applyAccountListGroups(ctx context.Context, q *dbent.AccountQuery) *dbent.AccountQuery {
+	ids := service.AccountListGroups(ctx)
+	if len(ids) == 0 {
+		return q
+	}
+	predicates := make([]dbpredicate.Account, 0, len(ids))
+	for _, id := range ids {
+		if id == service.AccountListGroupUngrouped {
+			predicates = append(predicates, dbaccount.Not(dbaccount.HasAccountGroups()))
+		} else {
+			predicates = append(predicates, dbaccount.HasAccountGroupsWith(dbaccountgroup.GroupIDEQ(id)))
+		}
+	}
+	return q.Where(dbaccount.Or(predicates...))
 }

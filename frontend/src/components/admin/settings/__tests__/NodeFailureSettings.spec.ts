@@ -1,0 +1,71 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import NodeFailureSettings from '../NodeFailureSettings.vue'
+
+const api = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn() }))
+vi.mock('@/api/admin/settings', () => ({ getNodeFailureSettings: api.get, updateNodeFailureSettings: api.put }))
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+const values = { failure_rate_percent: 40, window_minutes: 2, failure_threshold: 20, cooldown_minutes: 5 }
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  api.get.mockResolvedValue({ ...values })
+  api.put.mockImplementation(async value => value)
+})
+describe('NodeFailureSettings', () => {
+  it('loads persisted settings, saves edits and reloads them', async () => {
+    const wrapper = mount(NodeFailureSettings)
+    await flushPromises()
+    expect((wrapper.get('[data-testid="failure_threshold"]').element as HTMLInputElement).value).toBe('20')
+    await wrapper.get('[data-testid="cooldown_minutes"]').setValue('15')
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    expect(api.put).toHaveBeenCalledWith({ ...values, cooldown_minutes: 15 })
+    expect(wrapper.text()).toContain('admin.settings.nodeFailure.saved')
+    wrapper.unmount()
+    api.get.mockResolvedValue({ ...values, cooldown_minutes: 15 })
+    const reloaded = mount(NodeFailureSettings)
+    await flushPromises()
+    expect((reloaded.get('[data-testid="cooldown_minutes"]').element as HTMLInputElement).value).toBe('15')
+    reloaded.unmount()
+  })
+  it.each(['', '0', '1.5', '100001'])('rejects invalid threshold %s without saving', async value => {
+    const wrapper = mount(NodeFailureSettings)
+    await flushPromises()
+    await wrapper.get('[data-testid="failure_threshold"]').setValue(value)
+    await wrapper.get('button').trigger('click')
+    expect(api.put).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="alert"]').text()).toContain('nodeFailure.invalid')
+    wrapper.unmount()
+  })
+  it.each(['', '0', '100', '40.5'])('rejects invalid failure rate %s', async value => {
+    const wrapper = mount(NodeFailureSettings)
+    await flushPromises()
+    await wrapper.get('[data-testid="failure_rate_percent"]').setValue(value)
+    await wrapper.get('button').trigger('click')
+    expect(api.put).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('prevents saving defaults after a load failure and allows retry', async () => {
+    api.get.mockRejectedValueOnce(new Error('offline'))
+    const wrapper = mount(NodeFailureSettings)
+    await flushPromises()
+    expect(wrapper.find('input').exists()).toBe(false)
+    expect(wrapper.get('[role="alert"]').text()).toContain('nodeFailure.loadFailed')
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('input')).toHaveLength(4)
+    expect(api.put).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('reports a save failure without claiming success', async () => {
+    api.put.mockRejectedValueOnce(new Error('offline'))
+    const wrapper = mount(NodeFailureSettings)
+    await flushPromises()
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('nodeFailure.saveFailed')
+    expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+})

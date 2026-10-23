@@ -1,5 +1,35 @@
 export default {
     settings: {
+      accountDailyDiscount: {
+        "title": "Daily account revenue discounts",
+        "description": "All accounts use these tiers. Each account separately totals its daily actual usage charges, including balance deductions and subscription usage. Subsequent requests receive a discount on the current user billing multiplier after a threshold is exceeded.",
+        "enabled": "Enable tiered discounts",
+        "threshold": "Daily revenue above (USD)",
+        "discount": "Discount in tenths",
+        "add": "Add tier",
+        "remove": "Remove tier",
+        "empty": "No tiers configured",
+        "hint": "Use the highest crossed revenue tier; discounts do not compound. 8 means the original multiplier × 0.8; 10 means no discount. The request crossing a threshold is not discounted retroactively. Daily totals reset at midnight in the system timezone.",
+        "loadFailed": "Could not load settings.",
+        "retry": "Reload",
+        "saved": "Discount tiers saved",
+        "saveFailed": "Could not save settings. Please retry.",
+        "invalid": "At most 20 tiers. Revenue thresholds must be unique, nonnegative amounts with up to 8 decimal places. Discounts must be greater than 0 and at most 10 with up to 2 decimal places. Enable only after adding at least one tier."
+},
+      nodeFailure: {
+        "title": "Node failure cooldown",
+        "description": "Applies to Anthropic API key accounts with a custom upstream URL. Both failure count and failure rate must exceed their thresholds. Rate = node failures / (successes + node failures); client disconnects and invalid requests are excluded.",
+        "window_minutes": "Window (minutes)",
+        "failure_threshold": "Failures greater than",
+        "failure_rate_percent": "Failure rate above (%)",
+        "cooldown_minutes": "Cooldown / retry interval (minutes)",
+        "recoveryHint": "After cooldown, the next request runs at concurrency 1. A complete successful response restores the original concurrency; failure starts another cooldown. Changes do not alter an active cooldown.",
+        "loadFailed": "Could not load settings. Please retry.",
+        "retry": "Reload",
+        "saved": "Saved. Other instances apply changes within 5 seconds.",
+        "saveFailed": "Could not save settings. Please retry.",
+        "invalid": "Enter an integer within each range. Fields cannot be empty."
+},
       title: 'System Settings',
       description: 'Manage registration, email verification, default values, and SMTP settings',
       tabs: {

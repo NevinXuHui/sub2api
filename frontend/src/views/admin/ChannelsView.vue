@@ -628,6 +628,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -1700,6 +1702,8 @@ onUnmounted(() => {
   ruleAccountSearchRunner.clearAll()
   clearAllRuleAccountSearchState()
 })
+
+usePersistedFilters('admin/ChannelsView', { searchQuery, filters })
 </script>
 
 <style scoped>

@@ -239,6 +239,7 @@ func registerOpsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		}
 
 		// Error logs (legacy)
+		ops.POST("/errors/clear", h.Admin.Ops.ClearRequestErrors)
 		ops.GET("/errors", h.Admin.Ops.GetErrorLogs)
 		ops.GET("/errors/:id", h.Admin.Ops.GetErrorLogByID)
 		ops.PUT("/errors/:id/resolve", h.Admin.Ops.UpdateErrorResolution)
@@ -284,6 +285,7 @@ func registerDashboardRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		dashboard.GET("/snapshot-v2", h.Admin.Dashboard.GetSnapshotV2)
 		dashboard.GET("/stats", h.Admin.Dashboard.GetStats)
 		dashboard.GET("/realtime", h.Admin.Dashboard.GetRealtimeMetrics)
+		dashboard.GET("/performance", h.Admin.Dashboard.GetPerformance)
 		dashboard.GET("/trend", h.Admin.Dashboard.GetUsageTrend)
 		dashboard.GET("/models", h.Admin.Dashboard.GetModelStats)
 		dashboard.GET("/groups", h.Admin.Dashboard.GetGroupStats)
@@ -581,6 +583,10 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.POST("/admin-api-key/regenerate", h.Admin.Setting.RegenerateAdminAPIKey)
 		adminSettings.DELETE("/admin-api-key", h.Admin.Setting.DeleteAdminAPIKey)
 		// 529过载冷却配置
+		adminSettings.GET("/account-daily-discount", h.Admin.Setting.GetAccountDailyDiscountSettings)
+		adminSettings.PUT("/account-daily-discount", h.Admin.Setting.UpdateAccountDailyDiscountSettings)
+		adminSettings.GET("/node-failure", h.Admin.Setting.GetNodeFailureSettings)
+		adminSettings.PUT("/node-failure", h.Admin.Setting.UpdateNodeFailureSettings)
 		adminSettings.GET("/overload-cooldown", h.Admin.Setting.GetOverloadCooldownSettings)
 		adminSettings.PUT("/overload-cooldown", h.Admin.Setting.UpdateOverloadCooldownSettings)
 		// 429默认回避配置

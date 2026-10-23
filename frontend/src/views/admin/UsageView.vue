@@ -61,7 +61,13 @@
             :end-date="endDate"
             :filters="breakdownFilters"
           />
-          <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
+          <TokenUsageTrend
+            :trend-data="trendData"
+            :loading="chartsLoading"
+            :models="trendModelNames"
+            :model="filters.model"
+            @update:model="onTrendModelChange"
+          />
         </div>
       </div>
       <!-- 明细区：tab 栏 + 筛选 + 内容收进同一张卡片，消除割裂感 -->
@@ -83,8 +89,12 @@
           </button>
         </div>
 
-        <UsageFilters v-model="filters" ref="usageFiltersRef" flat :mode="activeTab" class="border-b border-gray-100 dark:border-dark-700/50" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
+        <UsageFilters persistence-key="admin/UsageView/labels" v-model="filters" ref="usageFiltersRef" flat :mode="activeTab" class="border-b border-gray-100 dark:border-dark-700/50" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
           <template #after-reset>
+            <button v-if="activeTab === 'errors'" data-testid="clear-error-records" type="button"
+              class="btn btn-secondary text-red-600 dark:text-red-400" :disabled="clearingErrors || errLoading" @click="openClearErrors">
+              {{ t('usage.errors.clearRecords') }}
+            </button>
             <div v-if="activeTab !== 'ranking'" class="relative" ref="columnDropdownRef">
               <button
                 data-testid="usage-column-settings"
@@ -174,6 +184,9 @@
     :end-date="endDate"
     @close="cleanupDialogVisible = false"
   />
+  <ConfirmDialog :show="clearErrorsVisible" :title="t('usage.errors.clearRecords')"
+    :message="t('usage.errors.clearConfirm')" danger
+    @confirm="confirmClearErrors" @cancel="clearErrorsVisible = false" />
   <!-- Balance history modal triggered from usage table user click -->
   <UserBalanceHistoryModal
     :show="showBalanceHistoryModal"
@@ -184,6 +197,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { saveAs } from 'file-saver'
@@ -200,7 +215,8 @@ import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import OpsErrorLogTable from '@/views/admin/ops/components/OpsErrorLogTable.vue'
 import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
-import { listErrorLogs } from '@/api/admin/ops'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { listErrorLogs, clearRequestErrors } from '@/api/admin/ops'
 import type { OpsErrorLog } from '@/api/admin/ops'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'; import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'; import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
@@ -215,6 +231,7 @@ type ModelDistributionSource = 'requested' | 'upstream' | 'mapping'
 const route = useRoute()
 const usageStats = ref<AdminUsageStatsResponse | null>(null); const usageLogs = ref<AdminUsageLog[]>([]); const loading = ref(false); const exporting = ref(false)
 const trendData = ref<TrendDataPoint[]>([]); const requestedModelStats = ref<ModelStat[]>([]); const upstreamModelStats = ref<ModelStat[]>([]); const mappingModelStats = ref<ModelStat[]>([]); const groupStats = ref<GroupStat[]>([]); const chartsLoading = ref(false); const modelStatsLoading = ref(false); const granularity = ref<'day' | 'hour'>('hour')
+const trendModelNames = ref<string[]>([])
 const modelDistributionMetric = ref<DistributionMetric>('tokens')
 const modelDistributionSource = ref<ModelDistributionSource>('requested')
 const loadedModelSources = reactive<Record<ModelDistributionSource, boolean>>({
@@ -331,7 +348,7 @@ const applyRouteQueryFilters = () => {
 
   filters.value = {
     ...filters.value,
-    user_id: queryUserId,
+    user_id: queryUserId ?? filters.value.user_id,
     start_date: startDate.value,
     end_date: endDate.value
   }
@@ -508,14 +525,22 @@ const loadChartData = async () => {
 	  upstream_model_mismatch: filters.value.upstream_model_mismatch,
       include_stats: false,
       include_trend: true,
-      include_model_stats: false,
+      include_model_stats: true,
       include_group_stats: true,
       include_users_trend: false
     })
     if (seq !== chartReqSeq) return
     trendData.value = snapshot.trend || []
+    // Keep requested-model choices available even when the distribution chart
+    // is displaying upstream or mapped models.
+    trendModelNames.value = (snapshot.models || []).map(model => model.model)
     groupStats.value = snapshot.groups || []
   } catch (error) { console.error('Failed to load chart data:', error) } finally { if (seq === chartReqSeq) chartsLoading.value = false }
+}
+const onTrendModelChange = (model: string) => {
+  filters.value.model = model || undefined
+  trendData.value = []
+  applyFilters()
 }
 const applyFilters = () => {
   pagination.page = 1
@@ -801,6 +826,31 @@ const switchTab = (tab: DetailTab) => {
 }
 
 // Error tab state
+const clearErrorsVisible = ref(false)
+const clearingErrors = ref(false)
+const clearErrorsCutoff = ref('')
+const openClearErrors = () => {
+  clearErrorsCutoff.value = new Date().toISOString()
+  clearErrorsVisible.value = true
+}
+const confirmClearErrors = async () => {
+  if (clearingErrors.value) return
+  clearingErrors.value = true
+  clearErrorsVisible.value = false
+  try {
+    const result = await clearRequestErrors(clearErrorsCutoff.value)
+    appStore.showSuccess(t('usage.errors.clearSuccess', { count: result.deleted }))
+    showErrorModal.value = false
+    selectedErrorId.value = null
+    errPage.value = 1
+    await loadAdminErrors()
+  } catch {
+    appStore.showError(t('usage.errors.clearFailed'))
+    await loadAdminErrors()
+  } finally {
+    clearingErrors.value = false
+  }
+}
 const errRows = ref<OpsErrorLog[]>([])
 const errLoading = ref(false)
 const errPage = ref(1)
@@ -865,9 +915,12 @@ const handleColumnClickOutside = (event: MouseEvent) => {
 }
 
 onMounted(() => {
+  if (!detailTabs.value.some((tab) => tab.key === activeTab.value)) activeTab.value = 'usage'
+  if (activeTab.value === 'ranking') rankingMounted.value = true
   applyRouteQueryFilters()
   void loadRouteUserFilterLabel()
   loadLogs()
+  if (activeTab.value === 'errors') void loadAdminErrors()
   loadStats()
   loadModelStats(modelDistributionSource.value, true)
   window.setTimeout(() => {
@@ -884,4 +937,6 @@ watch(modelDistributionSource, (source) => {
 })
 
 defineExpose({ requestedModelStats, refreshData })
+
+usePersistedFilters('admin/UsageView', { activeTab, startDate, endDate, granularity, filters, sortState, modelDistributionSource, endpointDistributionSource, modelDistributionMetric, groupDistributionMetric, endpointDistributionMetric })
 </script>

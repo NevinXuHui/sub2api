@@ -227,7 +227,9 @@ func (s *httpUpstreamService) Do(req *http.Request, proxyURL string, accountID i
 		atomic.StoreInt64(&entry.lastUsed, time.Now().UnixNano())
 		return nil, err
 	}
-	s.recordOpenAIHTTP2Success(profile, entry.protocolMode, entry.proxyKey)
+	// Headers are not a completed stream. Observe body-read failures too so
+	// repeated H2 disconnects can activate H1 fallback on direct and proxy routes.
+	resp.Body = s.observeOpenAIHTTP2Body(req.Context(), profile, entry, resp.Body)
 
 	// 包装响应体，在关闭时自动减少计数并更新时间戳
 	// 这确保了流式响应（如 SSE）在完全读取前不会被淘汰
@@ -1074,6 +1076,9 @@ func (s *httpUpstreamService) resolveProtocolMode(profile service.HTTPUpstreamPr
 		return upstreamProtocolModeOpenAIH1
 	}
 	if parsedProxy == nil {
+		if settings.allowProxyFallbackToHTTP1 && s.isOpenAIHTTP2FallbackActive(proxyKey) {
+			return upstreamProtocolModeOpenAIH1Fallback
+		}
 		return upstreamProtocolModeOpenAIH2
 	}
 	scheme := strings.ToLower(parsedProxy.Scheme)
@@ -1130,6 +1135,7 @@ func isOpenAIHTTP2CompatibilityError(err error) bool {
 		"stream error",
 		"goaway",
 		"refused_stream",
+		"http2: client connection lost",
 		"frame too large",
 	}
 	for _, marker := range markers {
@@ -1178,7 +1184,7 @@ func (s *httpUpstreamService) recordOpenAIHTTP2Failure(profile service.HTTPUpstr
 	if !settings.enabled || !settings.allowProxyFallbackToHTTP1 {
 		return
 	}
-	if !isHTTPProxyKey(proxyKey) || !isOpenAIHTTP2CompatibilityError(err) {
+	if (proxyKey != directProxyKey && !isHTTPProxyKey(proxyKey)) || !isOpenAIHTTP2CompatibilityError(err) {
 		return
 	}
 	state := s.getOrCreateOpenAIHTTP2FallbackState(proxyKey)
@@ -1194,7 +1200,7 @@ func (s *httpUpstreamService) recordOpenAIHTTP2Success(profile service.HTTPUpstr
 	if profile != service.HTTPUpstreamProfileOpenAI || protocolMode != upstreamProtocolModeOpenAIH2 {
 		return
 	}
-	if !isHTTPProxyKey(proxyKey) {
+	if proxyKey != directProxyKey && !isHTTPProxyKey(proxyKey) {
 		return
 	}
 	raw, ok := s.openAIHTTP2Fallbacks.Load(proxyKey)

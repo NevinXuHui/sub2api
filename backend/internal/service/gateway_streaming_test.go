@@ -297,6 +297,15 @@ func TestHandleStreamingResponse_StreamReadErrorAfterOutput_PassesThrough(t *tes
 	require.Contains(t, body, `"type":"error"`, "data 必须含 type:error 顶层字段（Anthropic 标准）")
 	require.Contains(t, body, `"stream_read_error"`, "error.type 必须为 stream_read_error")
 	require.Contains(t, body, "upstream stream disconnected", "error.message 必须包含具体根因，Claude Code 等客户端才能显示有效错误文案")
+	require.True(t, IsResponseCommitted(c), "handler must not append a second error")
+	raw, ok := c.Get(OpsStreamErrorKey)
+	require.True(t, ok)
+	streamErr, ok := raw.(OpsStreamError)
+	require.True(t, ok)
+	require.Equal(t, "stream_read_error", streamErr.ErrType)
+	require.True(t, streamErr.CountTowardsSLA)
+	require.Equal(t, http.StatusBadGateway, streamErr.IntendedStatus)
+
 }
 
 // 默认 (*net.OpError).Error() 会拼接 Source/Addr 字段，泄露内部 IP/端口与上游

@@ -458,6 +458,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { useI18n } from 'vue-i18n'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -929,6 +931,8 @@ onBeforeUnmount(() => {
   controller?.abort()
   if (autoRefreshTimer) window.clearInterval(autoRefreshTimer)
 })
+
+usePersistedFilters('user/ChannelStatusV2View', { filter, matrixGroupBy, healthMode, trendView }, { skipRestore: () => Object.keys(route.query).length > 0 })
 </script>
 
 <style scoped>

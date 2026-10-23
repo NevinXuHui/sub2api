@@ -683,6 +683,11 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 		args = append(args, int16(*filters.BillingType))
 	}
 	conditions, args = appendUsageLogBillingModeWhereCondition(conditions, args, filters.BillingMode)
+	if filters.MinFirstTokenMS != nil {
+		conditions = append(conditions, fmt.Sprintf("first_token_ms >= $%d", len(args)+1))
+		args = append(args, *filters.MinFirstTokenMS)
+	}
+
 	if filters.UpstreamModelMismatch != nil {
 		conditions = append(conditions, upstreamModelMismatchCondition("upstream_model_mismatch", *filters.UpstreamModelMismatch))
 	}

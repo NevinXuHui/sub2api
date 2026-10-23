@@ -29,6 +29,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -170,4 +172,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (abortController) abortController.abort()
 })
+
+usePersistedFilters('user/ChannelStatusV1View', { currentWindow })
 </script>

@@ -116,6 +116,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -308,4 +310,6 @@ async function handleQueryRefund(order: PaymentOrder) {
 function formatDateTime(dateStr: string): string { return formatOrderDateTime(dateStr) }
 
 onMounted(() => loadOrders())
+
+usePersistedFilters('admin/orders/AdminOrdersView', { orderSearch, orderFilters })
 </script>

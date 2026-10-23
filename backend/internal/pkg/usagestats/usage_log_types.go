@@ -25,6 +25,37 @@ func NormalizeModelSource(source string) string {
 	return ModelSourceRequested
 }
 
+// ModelPerformance reports completed usage in the rolling one-minute window.
+type ModelPerformance struct {
+	AvgFirstTokenMS   *float64 `json:"avg_first_token_ms"`
+	FirstTokenSamples int64    `json:"first_token_samples"`
+	Model             string   `json:"model"`
+	RPM               int64    `json:"rpm"`
+	TPM               int64    `json:"tpm"`
+}
+
+type ModelRequestErrors struct {
+	Model      string  `json:"model"`
+	Requests   int64   `json:"requests"`
+	ErrorCount int64   `json:"error_count"`
+	ErrorRate  float64 `json:"error_rate"`
+}
+
+type DashboardPerformance struct {
+	HourErrorCount    int64                `json:"hour_error_count"`
+	TodayModels       []ModelRequestErrors `json:"today_models"`
+	TodayErrorCount   int64                `json:"today_error_count"`
+	TodayErrorRate    float64              `json:"today_error_rate"`
+	ErrorCount        int64                `json:"error_count"`
+	AvgFirstTokenMS   *float64             `json:"avg_first_token_ms"`
+	FirstTokenSamples int64                `json:"first_token_samples"`
+	RPM               int64                `json:"rpm"`
+	TPM               int64                `json:"tpm"`
+	WindowSeconds     int                  `json:"window_seconds"`
+	UpdatedAt         time.Time            `json:"updated_at"`
+	Models            []ModelPerformance   `json:"models"`
+}
+
 // DashboardStats 仪表盘统计
 type DashboardStats struct {
 	// 用户统计
@@ -269,12 +300,13 @@ type PlatformDashboardStats struct {
 
 // UsageLogFilters represents filters for usage log queries
 type UsageLogFilters struct {
-	UserID    int64
-	APIKeyID  int64
-	AccountID int64
-	GroupID   int64
-	RequestID string
-	Model     string
+	MinFirstTokenMS *int
+	UserID          int64
+	APIKeyID        int64
+	AccountID       int64
+	GroupID         int64
+	RequestID       string
+	Model           string
 	// ModelFilterSource controls how Model is matched. Empty preserves raw usage_logs.model semantics.
 	ModelFilterSource     string
 	RequestType           *int16

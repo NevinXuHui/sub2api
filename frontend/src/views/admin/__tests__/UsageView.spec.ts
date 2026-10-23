@@ -3,8 +3,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
 
 import UsageView from '../UsageView.vue'
+import { pageFilterStorageKey } from '@/composables/usePersistedFilters'
 
-const { list, exportList, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs, routeQuery, aoaToSheet, sheetAddAoa, saveAs, xlsxWrite } = vi.hoisted(() => {
+const { list, exportList, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs, clearRequestErrors, routeQuery, aoaToSheet, sheetAddAoa, saveAs, xlsxWrite } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -19,6 +20,7 @@ const { list, exportList, getStats, getSnapshotV2, getById, getModelStats, listE
     getById: vi.fn(),
     getModelStats: vi.fn(),
     listErrorLogs: vi.fn(),
+    clearRequestErrors: vi.fn(),
     routeQuery: {} as Record<string, string>,
 		aoaToSheet: vi.fn(() => ({})),
 		sheetAddAoa: vi.fn(),
@@ -84,7 +86,7 @@ vi.mock('xlsx', () => ({
 }))
 
 vi.mock('@/api/admin/ops', () => ({
-  listErrorLogs,
+  listErrorLogs, clearRequestErrors,
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -166,6 +168,7 @@ const GroupDistributionChartStub = {
 
 const mountRouteFilteredUsageView = () => mount(UsageView, {
   global: { stubs: {
+    ConfirmDialog: true,
     AppLayout: AppLayoutStub, UsageStatsCards: true, UsageFilters: UsageFiltersStub,
     UsageTable: true, UsageExportProgress: true, UsageCleanupDialog: true,
     UserBalanceHistoryModal: true, Pagination: true, Select: true,
@@ -198,6 +201,49 @@ describe('admin UsageView route filters', () => {
   afterEach(() => {
     Object.keys(routeQuery).forEach((key) => delete routeQuery[key])
     vi.useRealTimers()
+  })
+
+  it('requires confirmation before clearing and preserves the opening cutoff', async () => {
+    clearRequestErrors.mockReset().mockResolvedValue({ deleted: 7 })
+    listErrorLogs.mockReset().mockResolvedValue({ items: [], total: 7, page: 1, page_size: 20 })
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    const tabs=wrapper.findAll('[data-testid="usage-detail-tab"]')
+    await tabs[1].trigger('click')
+    await flushPromises()
+    const opening=new Date().toISOString()
+    await wrapper.get('[data-testid="clear-error-records"]').trigger('click')
+    expect(clearRequestErrors).not.toHaveBeenCalled()
+    const dialog=wrapper.findComponent({name:'ConfirmDialog'})
+    expect(dialog.props('show')).toBe(true)
+    dialog.vm.$emit('cancel')
+    await flushPromises()
+    expect(clearRequestErrors).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid="clear-error-records"]').trigger('click')
+    await vi.advanceTimersByTimeAsync(2000)
+    dialog.vm.$emit('confirm')
+    await flushPromises()
+    expect(clearRequestErrors).toHaveBeenCalledTimes(1)
+    expect(clearRequestErrors).toHaveBeenCalledWith(opening)
+    expect(dialog.props('show')).toBe(false)
+    expect(listErrorLogs.mock.calls.length).toBeGreaterThan(1)
+    wrapper.unmount()
+  })
+
+  it('applies and saves the model selected from the token trend', async () => {
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    const chart = wrapper.findComponent({ name: 'TokenUsageTrend' })
+    chart.vm.$emit('update:model', 'claude-sonnet-4-5')
+    await flushPromises()
+    expect(getSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'claude-sonnet-4-5' }))
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'claude-sonnet-4-5' }), expect.anything())
+    expect(chart.props('model')).toBe('claude-sonnet-4-5')
+    expect(localStorage.setItem).toHaveBeenCalledWith(expect.any(String), expect.stringContaining('"model":"claude-sonnet-4-5"'))
+    chart.vm.$emit('update:model', '')
+    await flushPromises()
+    expect(getSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining({ model: undefined }))
+    wrapper.unmount()
   })
 
   it('shows the routed user while applying user_id to usage requests', async () => {
@@ -678,6 +724,23 @@ describe('admin UsageView errors tab filter forwarding', () => {
       account_id: 7,
       group_id: 3,
     }))
+  })
+
+  it('restores the saved errors tab and loads its requests', async () => {
+    const key = pageFilterStorageKey('admin/UsageView')
+    vi.mocked(localStorage.getItem).mockImplementation((name) =>
+      name === key ? JSON.stringify({ activeTab: 'errors' }) : null)
+
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+
+    expect((wrapper.vm as any).activeTab).toBe('errors')
+    expect(listErrorLogs).toHaveBeenCalledTimes(1)
+
+    await wrapper.findAll('[data-testid="usage-detail-tab"]')[0].trigger('click')
+    expect(JSON.parse(vi.mocked(localStorage.setItem).mock.calls.findLast(([name]) => name === key)?.[1] as string).activeTab).toBe('usage')
+    wrapper.unmount()
+    vi.mocked(localStorage.getItem).mockReturnValue(null)
   })
 })
 

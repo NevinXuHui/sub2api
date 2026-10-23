@@ -27,6 +27,8 @@ func (r *usageBillingRepository) Apply(ctx context.Context, cmd *service.UsageBi
 		return nil, errors.New("usage billing repository db is nil")
 	}
 
+	copyCommand := *cmd
+	cmd = &copyCommand
 	cmd.Normalize()
 	if cmd.RequestID == "" {
 		return nil, service.ErrUsageBillingRequestIDRequired
@@ -47,10 +49,20 @@ func (r *usageBillingRepository) Apply(ctx context.Context, cmd *service.UsageBi
 		return nil, err
 	}
 	if !applied {
-		return &service.UsageBillingApplyResult{Applied: false}, nil
+		result := &service.UsageBillingApplyResult{Applied: false}
+		if cmd.DailyDiscount != nil {
+			result.DailyDiscount, err = loadAccountDailyDiscountReceipt(ctx, tx, cmd.RequestID, cmd.APIKeyID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return result, nil
 	}
 
 	result := &service.UsageBillingApplyResult{Applied: true}
+	if err := applyAccountDailyDiscount(ctx, tx, cmd, result); err != nil {
+		return nil, err
+	}
 	if err := r.applyUsageBillingEffects(ctx, tx, cmd, result); err != nil {
 		return nil, err
 	}

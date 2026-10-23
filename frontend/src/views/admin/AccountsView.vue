@@ -490,6 +490,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+
 import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
@@ -2164,11 +2166,10 @@ const accountMatchesCurrentFilters = (account: Account) => {
   }
   if (filters.group) {
     const groupIds = account.group_ids ?? account.groups?.map((group) => group.id) ?? []
-    if (filters.group === ACCOUNT_UNGROUPED_GROUP_QUERY_VALUE) {
-      if (groupIds.length > 0) return false
-    } else if (!groupIds.includes(Number(filters.group))) {
-      return false
-    }
+    const matchesGroup = String(filters.group).split(',').some(group =>
+      group === ACCOUNT_UNGROUPED_GROUP_QUERY_VALUE ? groupIds.length === 0 : groupIds.includes(Number(group))
+    )
+    if (!matchesGroup) return false
   }
   const privacyMode = typeof account.extra?.privacy_mode === 'string' ? account.extra.privacy_mode : ''
   if (filters.privacy_mode) {
@@ -2585,6 +2586,8 @@ onUnmounted(() => {
   desktopViewportListener = null
   desktopViewportMediaQuery = null
 })
+
+usePersistedFilters('admin/AccountsView', { params })
 </script>
 
 <style scoped>
