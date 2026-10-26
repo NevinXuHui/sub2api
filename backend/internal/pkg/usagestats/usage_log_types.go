@@ -42,6 +42,8 @@ type ModelRequestErrors struct {
 }
 
 type DashboardPerformance struct {
+	KiroRSAccounts    []KiroRSAccountCount `json:"kiro_rs_accounts,omitempty"`
+	ErrorFreeSeconds  *int64               `json:"error_free_seconds"`
 	HourErrorCount    int64                `json:"hour_error_count"`
 	TodayModels       []ModelRequestErrors `json:"today_models"`
 	TodayErrorCount   int64                `json:"today_error_count"`
@@ -54,6 +56,13 @@ type DashboardPerformance struct {
 	WindowSeconds     int                  `json:"window_seconds"`
 	UpdatedAt         time.Time            `json:"updated_at"`
 	Models            []ModelPerformance   `json:"models"`
+}
+
+type KiroRSAccountCount struct {
+	Name      string     `json:"name"`
+	Count     *int64     `json:"priority_zero_available"`
+	Status    string     `json:"status"`
+	UpdatedAt *time.Time `json:"updated_at"`
 }
 
 // DashboardStats 仪表盘统计

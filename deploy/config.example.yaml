@@ -743,6 +743,10 @@ api_key_create:
 # 仪表盘缓存配置
 # =============================================================================
 dashboard_cache:
+  # Optional private JSON file: [{"name":"kiro","url":"https://kiro.example.com","token":"ADMIN_KEY"}]
+  # 优先级 0、未禁用、未冷却账号统计；环境变量 DASHBOARD_CACHE_KIRO_RS_STATS_FILE。
+  # 文件应仅允许服务用户读取，配置变更后重启；每实例缓存 30 秒，查询失败不显示为 0。
+  kiro_rs_stats_file: ""
   # Enable dashboard cache
   # 启用仪表盘缓存
   enabled: true

@@ -45,11 +45,22 @@
                 </div>
               </div>
             </div>
+            <p class="mt-2 flex flex-wrap items-baseline gap-x-2 text-xs text-gray-500 dark:text-gray-400" data-testid="error-free-time" :title="t('admin.dashboard.errorFreeTimeHint')">
+              <span>{{ t('admin.dashboard.errorFreeTime') }}</span>
+              <strong class="text-emerald-600 dark:text-emerald-400">{{ errorFreeTime }}</strong>
+            </p>
             <p class="mt-2 text-xs text-gray-600 dark:text-gray-300" data-testid="recent-ttft">
               {{ t('admin.dashboard.recentFirstToken') }}:
               <strong>{{ formatFirstToken(performance?.avg_first_token_ms) }}</strong>
               <span v-if="performance"> · {{ t('admin.dashboard.firstTokenSamples', { count: performance.first_token_samples ?? 0 }) }}</span>
             </p>
+            <div v-if="performance?.kiro_rs_accounts?.length" class="mt-2 border-t border-gray-100 pt-2 text-xs dark:border-dark-700" data-testid="kiro-rs-accounts">
+              <p class="mb-1 text-gray-500 dark:text-gray-400">{{ t('admin.dashboard.kiroPriorityZero') }}</p>
+              <div v-for="instance in performance.kiro_rs_accounts" :key="instance.name" class="flex items-baseline justify-between gap-2 py-0.5" :title="instance.updated_at ? new Date(instance.updated_at).toLocaleString() : ''">
+                <span class="min-w-0 break-all text-gray-600 dark:text-gray-300">{{ instance.name }}</span>
+                <strong class="shrink-0 tabular-nums" :class="instance.status === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'">{{ instance.status === 'ok' && instance.priority_zero_available != null ? formatNumber(instance.priority_zero_available) : t(instance.status === 'loading' ? 'admin.dashboard.kiroLoading' : 'admin.dashboard.kiroUnavailable') }}</strong>
+              </div>
+            </div>
             <p v-if="performanceError" role="status" class="mt-1 text-xs text-amber-600 dark:text-amber-400">
               {{ t('admin.dashboard.performanceRefreshFailed') }}
             </p>
@@ -589,8 +600,24 @@ const loadModelSummary = async () => {
 const formatFirstToken = (ms: number | null | undefined) => ms == null ? '—' : `${(ms / 1000).toFixed(2)} s`
 
 const performance = ref<DashboardPerformance | null>(null)
+const performanceClock = ref(Date.now())
+const performanceReceivedAt = ref(performanceClock.value)
+const errorFreeTime = computed(() => {
+  if (!performance.value) return '—'
+  const seconds = performance.value.error_free_seconds
+  if (seconds === undefined) return '—'
+  if (seconds === null) return t('admin.dashboard.noErrorHistory')
+  const elapsed = Math.max(0, performanceClock.value - performanceReceivedAt.value) / 1000
+  const total = Math.max(0, Math.floor(seconds + elapsed))
+  const days = Math.floor(total / 86400)
+  const hours = Math.floor(total % 86400 / 3600)
+  const minutes = Math.floor(total % 3600 / 60)
+  const clock = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+  return days > 0 ? `${t('admin.dashboard.errorFreeDays', { count: days })} ${clock}` : clock
+})
 const performanceError = ref(false)
 let performanceTimer: ReturnType<typeof setInterval> | undefined
+let errorFreeTimer: ReturnType<typeof setInterval> | undefined
 let performanceController: AbortController | null = null
 let performanceDisposed = false
 
@@ -601,6 +628,8 @@ const loadPerformance = async () => {
   try {
     const result = await adminAPI.dashboard.getPerformance(controller.signal)
     if (performanceDisposed) return
+    performanceReceivedAt.value = Date.now()
+    performanceClock.value = performanceReceivedAt.value
     performance.value = result
     performanceError.value = false
   } catch {
@@ -995,6 +1024,9 @@ onMounted(() => {
   modelSummaryTimer = setInterval(() => { void loadModelSummary() }, 60_000)
   document.addEventListener('visibilitychange', loadModelSummary)
   performanceTimer = setInterval(() => { void loadPerformance() }, 10_000)
+  errorFreeTimer = setInterval(() => {
+    if (!performanceError.value) performanceClock.value = Date.now()
+  }, 1000)
   document.addEventListener('visibilitychange', loadPerformance)
 })
 onUnmounted(() => {
@@ -1003,6 +1035,7 @@ onUnmounted(() => {
   modelSummaryController?.abort()
   document.removeEventListener('visibilitychange', loadModelSummary)
   if (performanceTimer) clearInterval(performanceTimer)
+  if (errorFreeTimer) clearInterval(errorFreeTimer)
   performanceController?.abort()
   document.removeEventListener('visibilitychange', loadPerformance)
 })

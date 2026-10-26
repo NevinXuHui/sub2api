@@ -97,6 +97,21 @@ const createDashboardStats = (): DashboardStats => ({
 enableAutoUnmount(afterEach)
 
 describe('admin DashboardView', () => {
+  it('distinguishes zero available kiro accounts from unavailable instances', async () => {
+    getPerformance.mockResolvedValue({ models: [], kiro_rs_accounts: [
+      { name: 'kiro-zero', priority_zero_available: 0, status: 'ok' },
+      { name: 'kiro-offline', priority_zero_available: null, status: 'unavailable' }
+    ] })
+    const wrapper = mount(DashboardView, { global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' }, LoadingSpinner: true,
+      Icon: true, DateRangePicker: true, Select: true, ModelDistributionChart: true, TokenUsageTrend: true
+    } } })
+    await flushPromises()
+    const rows = wrapper.get('[data-testid="kiro-rs-accounts"]')
+    expect(rows.text()).toContain('kiro-zero')
+    expect(rows.findAll('strong')[0]?.text()).toBe('0')
+    expect(rows.findAll('strong')[1]?.text()).toBe('admin.dashboard.kiroUnavailable')
+  })
   afterEach(() => { vi.useRealTimers() })
   beforeEach(() => {
     localStorage.clear()
@@ -211,6 +226,8 @@ describe('admin DashboardView', () => {
 
   it('shows model rates, refreshes every ten seconds, and stops on unmount', async () => {
     vi.useFakeTimers()
+    getPerformance.mockResolvedValueOnce({ ...await getPerformance(), error_free_seconds: 176461 })
+    getPerformance.mockClear()
     const wrapper = mount(DashboardView, {
       global: { stubs: {
         AppLayout: { template: '<div><slot /></div>' }, LoadingSpinner: true,
@@ -227,20 +244,26 @@ describe('admin DashboardView', () => {
     expect(getPerformance).toHaveBeenCalledTimes(1)
     expect(wrapper.get('[data-testid="recent-errors"]').text()).toContain('12')
     expect(wrapper.get('[data-testid="hour-errors"]').text()).toContain('60')
+    expect(wrapper.get('[data-testid="error-free-time"]').text()).toContain('01:01:01')
+    expect(wrapper.get('[data-testid="error-free-time"]').text()).toContain('admin.dashboard.errorFreeDays')
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(wrapper.get('[data-testid="error-free-time"]').text()).toContain('01:01:02')
+    expect(getPerformance).toHaveBeenCalledTimes(1)
     getPerformance.mockRejectedValueOnce(new Error('offline'))
-    await vi.advanceTimersByTimeAsync(10_000)
+    await vi.advanceTimersByTimeAsync(9000)
     await flushPromises()
     expect(getPerformance).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('admin.dashboard.performanceRefreshFailed')
     expect(table.text()).toContain('haiku')
     expect(wrapper.get('[data-testid="recent-errors"]').text()).toContain('12')
     expect(wrapper.get('[data-testid="hour-errors"]').text()).toContain('60')
-    getPerformance.mockResolvedValueOnce({ error_count: 0, hour_error_count: 0, rpm: 0, tpm: 0, window_seconds: 60, updated_at: new Date().toISOString(), models: [] })
+    getPerformance.mockResolvedValueOnce({ error_free_seconds: null, error_count: 0, hour_error_count: 0, rpm: 0, tpm: 0, window_seconds: 60, updated_at: new Date().toISOString(), models: [] })
     await vi.advanceTimersByTimeAsync(10_000)
     await flushPromises()
     expect(table.text()).not.toContain('haiku')
     expect(wrapper.get('[data-testid="recent-errors"]').text()).toContain('0')
     expect(wrapper.get('[data-testid="hour-errors"]').text()).toContain('0')
+    expect(wrapper.get('[data-testid="error-free-time"]').text()).toContain('admin.dashboard.noErrorHistory')
     expect(wrapper.text()).not.toContain('admin.dashboard.performanceRefreshFailed')
     wrapper.unmount()
     await vi.advanceTimersByTimeAsync(10_000)

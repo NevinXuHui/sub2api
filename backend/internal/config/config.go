@@ -1757,6 +1757,8 @@ type SubscriptionMaintenanceConfig struct {
 
 // DashboardCacheConfig 仪表盘统计缓存配置
 type DashboardCacheConfig struct {
+	// Private JSON array of {name,url,token}; optional, used for upstream account metrics.
+	KiroRSStatsFile string `mapstructure:"kiro_rs_stats_file"`
 	// Enabled: 是否启用仪表盘缓存
 	Enabled bool `mapstructure:"enabled"`
 	// KeyPrefix: Redis key 前缀，用于多环境隔离
@@ -2387,6 +2389,7 @@ func setDefaults() {
 	viper.SetDefault("subscription_cache.jitter_percent", 10)
 
 	// Dashboard cache
+	viper.SetDefault("dashboard_cache.kiro_rs_stats_file", "")
 	viper.SetDefault("dashboard_cache.enabled", true)
 	viper.SetDefault("dashboard_cache.key_prefix", "sub2api:")
 	viper.SetDefault("dashboard_cache.stats_fresh_ttl_seconds", 15)

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
@@ -767,6 +768,7 @@ func (h *DashboardHandler) GetPerformance(c *gin.Context) {
 	defer cancel()
 	stats, err := h.dashboardService.GetDashboardPerformance(ctx)
 	if err != nil {
+		logger.LegacyPrintf("handler.dashboard", "[Dashboard] Performance statistics failed: %v", err)
 		response.InternalError(c, "Failed to get performance statistics")
 		return
 	}

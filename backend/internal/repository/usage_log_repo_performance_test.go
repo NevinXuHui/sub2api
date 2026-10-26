@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"regexp"
 	"testing"
 	"time"
 
@@ -65,6 +66,14 @@ func TestDashboardPerformance(t *testing.T) {
 						count = 0
 					}
 					countQuery.WillReturnRows(sqlmock.NewRows([]string{"count", "hour_count"}).AddRow(count, count*5))
+					lastError := sqlmock.NewRows([]string{"created_at"})
+					if tc.empty {
+						lastError.AddRow(nil)
+					} else {
+						lastError.AddRow(time.Now().Add(-49 * time.Hour))
+					}
+					mock.ExpectQuery(regexp.QuoteMeta(dashboardErrorFreeResetQuery)).
+						WithArgs(performanceSameTime{&start, time.Minute}).WillReturnRows(lastError).RowsWillBeClosed()
 					modelRows := sqlmock.NewRows([]string{"model", "errors", "usage"})
 					if !tc.empty {
 						modelRows.AddRow("haiku", 15, 75).AddRow("error-only", 10, 0).AddRow("success-only", 0, 0)
@@ -88,6 +97,7 @@ func TestDashboardPerformance(t *testing.T) {
 			require.Equal(t, start.Add(time.Minute), got.UpdatedAt)
 			require.NotNil(t, got.Models)
 			if tc.empty {
+				require.Nil(t, got.ErrorFreeSeconds)
 				require.Zero(t, got.ErrorCount)
 				require.Zero(t, got.HourErrorCount)
 				require.Zero(t, got.TodayErrorCount)
@@ -100,6 +110,8 @@ func TestDashboardPerformance(t *testing.T) {
 				return
 			}
 			require.EqualValues(t, 12, got.ErrorCount)
+			require.NotNil(t, got.ErrorFreeSeconds)
+			require.InDelta(t, 49*3600, *got.ErrorFreeSeconds, 1)
 			require.EqualValues(t, 60, got.HourErrorCount)
 			require.EqualValues(t, 25, got.TodayErrorCount)
 			require.Equal(t, 25.0, got.TodayErrorRate)

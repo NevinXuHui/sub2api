@@ -12,6 +12,15 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
+// The second preceding failure must fall within 30 minutes of the current one.
+// One ordered pass avoids a correlated scan for every historical failure.
+// MAX preserves the shared reset timestamp when multiple failures are tied.
+const dashboardErrorFreeResetQuery = `SELECT MAX(created_at) FROM (
+ SELECT created_at, LAG(created_at, 2) OVER (ORDER BY created_at) AS third_failure
+ FROM ops_error_logs
+ WHERE created_at < $1 AND is_count_tokens = FALSE AND status_code >= 400
+) failures WHERE third_failure >= created_at - INTERVAL '30 minutes'`
+
 // getPerformanceStats 获取 RPM 和 TPM（近5分钟平均值，可选按用户过滤）
 func (r *usageLogRepository) getPerformanceStats(ctx context.Context, userID int64) (rpm, tpm int64, err error) {
 	fiveMinutesAgo := time.Now().Add(-5 * time.Minute)
@@ -715,6 +724,25 @@ func (r *usageLogRepository) GetDashboardPerformance(ctx context.Context) (*usag
 		return nil, err
 	}
 	errorRows.Close()
+	var lastError sql.NullTime
+	lastErrorRows, err := r.sql.QueryContext(ctx, dashboardErrorFreeResetQuery, now)
+	if err != nil {
+		return nil, err
+	}
+	defer lastErrorRows.Close()
+	if lastErrorRows.Next() {
+		if err := lastErrorRows.Scan(&lastError); err != nil {
+			return nil, err
+		}
+	}
+	if err := lastErrorRows.Err(); err != nil {
+		return nil, err
+	}
+	lastErrorRows.Close()
+	if lastError.Valid {
+		seconds := int64(now.Sub(lastError.Time) / time.Second)
+		result.ErrorFreeSeconds = &seconds
+	}
 	// Count final failed requests only; recovered responses and count_tokens do
 	// not contribute. Both sides of the rate use the same system-day snapshot.
 	todayRows, err := r.sql.QueryContext(ctx, `SELECT model, SUM(errors), SUM(requests) FROM (

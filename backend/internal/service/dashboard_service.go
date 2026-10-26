@@ -40,6 +40,7 @@ type dashboardStatsCacheEntry struct {
 
 // DashboardService 提供管理员仪表盘统计服务。
 type DashboardService struct {
+	kiroStats      *kiroRSStats
 	usageRepo      UsageLogRepository
 	aggRepo        DashboardAggregationRepository
 	cache          DashboardStatsCache
@@ -89,6 +90,7 @@ func NewDashboardService(usageRepo UsageLogRepository, aggRepo DashboardAggregat
 		aggEnabled = false
 	}
 	return &DashboardService{
+		kiroStats:      newKiroRSStats(cfg),
 		usageRepo:      usageRepo,
 		aggRepo:        aggRepo,
 		cache:          cache,
@@ -440,5 +442,12 @@ func (s *DashboardService) GetDashboardPerformance(ctx context.Context) (*usages
 	if !ok {
 		return nil, errors.New("dashboard performance statistics unavailable")
 	}
-	return repo.GetDashboardPerformance(ctx)
+	stats, err := repo.GetDashboardPerformance(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if s.kiroStats != nil {
+		stats.KiroRSAccounts = s.kiroStats.snapshot()
+	}
+	return stats, nil
 }

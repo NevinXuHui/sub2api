@@ -45,6 +45,8 @@ export async function getRealtimeMetrics(): Promise<{
 }
 
 export interface DashboardPerformance {
+  kiro_rs_accounts?: Array<{ name: string; priority_zero_available: number | null; status: 'ok' | 'loading' | 'unavailable'; updated_at: string | null }>
+  error_free_seconds?: number | null
   hour_error_count?: number
   today_models?: Array<{ model: string; requests: number; error_count: number; error_rate: number }>
   today_error_count?: number
